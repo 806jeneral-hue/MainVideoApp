@@ -1,0 +1,356 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../common/app_sheet.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../data/models/enums.dart';
+import '../../../state/playback_controller.dart';
+import '../../common/video_thumbnail.dart';
+
+const List<double> kSpeedOptions = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+const List<int> kSleepMinutes = [15, 30, 45, 60];
+
+/// Everything that used to sit on the control bar but is not needed at a
+/// glance: speed, A-B repeat, shuffle and the sleep timer.
+///
+/// Each row shows its current state, so the bar itself no longer has to.
+Future<void> showPlayerOptionsSheet(BuildContext context) {
+  final player = context.read<PlaybackController>();
+
+  return showAppSheet<void>(
+    context,
+    builder: (_) => ChangeNotifierProvider.value(
+      value: player,
+      child: Consumer<PlaybackController>(
+        builder: (context, player, _) {
+          final s = context.s;
+          final settings = player.settings;
+          final sleeping = player.sleepRemaining;
+
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SheetTitle(s.more),
+                _OptionRow(
+                  icon: Icons.speed_rounded,
+                  title: s.playbackSpeed,
+                  value: Fmt.speed(player.speed),
+                  active: player.speed != 1.0,
+                  onTap: () {
+                    Navigator.pop(context);
+                    showSpeedSheet(context);
+                  },
+                ),
+                _OptionRow(
+                  icon: switch (player.loopMode) {
+                    LoopMode.one => Icons.repeat_one_rounded,
+                    _ => Icons.repeat_rounded,
+                  },
+                  title: s.repeat,
+                  value: player.loopMode.label(s),
+                  active: player.loopMode != LoopMode.off,
+                  onTap: player.cycleLoopMode,
+                ),
+                _OptionRow(
+                  icon: Icons.shuffle_rounded,
+                  title: s.shuffle,
+                  value: player.shuffle ? s.repeatAll : s.repeatOff,
+                  active: player.shuffle,
+                  onTap: player.toggleShuffle,
+                  trailing: Switch.adaptive(
+                    value: player.shuffle,
+                    onChanged: (_) => player.toggleShuffle(),
+                  ),
+                ),
+                if (settings.abRepeatEnabled)
+                  _OptionRow(
+                    icon: Icons.repeat_one_on_rounded,
+                    title: s.abRepeat,
+                    value: player.pointA == null
+                        ? s.repeatOff
+                        : (player.pointB == null
+                              ? Fmt.duration(player.pointA!)
+                              : s.abLooping(
+                                  Fmt.duration(player.pointA!),
+                                  Fmt.duration(player.pointB!),
+                                )),
+                    active: player.pointA != null,
+                    onTap: () {
+                      player.markAbPoint();
+                      Navigator.pop(context);
+                    },
+                  ),
+                if (settings.sleepTimerEnabled)
+                  _OptionRow(
+                    icon: Icons.bedtime_outlined,
+                    title: s.sleepTimer,
+                    value: sleeping == null
+                        ? s.repeatOff
+                        : Fmt.duration(sleeping),
+                    active: sleeping != null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      showSleepTimerSheet(context);
+                    },
+                  ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class _OptionRow extends StatelessWidget {
+  const _OptionRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+    this.active = false,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final VoidCallback onTap;
+  final bool active;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? context.accent : context.muted;
+
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: active
+              ? context.accentWash
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: AppTheme.thumbRadius,
+        ),
+        child: Icon(icon, size: 21, color: color),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(
+        value,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      trailing: trailing,
+    );
+  }
+}
+
+/// Playback speed picker (phase 4).
+Future<void> showSpeedSheet(BuildContext context) {
+  final player = context.read<PlaybackController>();
+
+  return showAppSheet<void>(
+    context,
+    builder: (_) => ChangeNotifierProvider.value(
+      value: player,
+      child: Consumer<PlaybackController>(
+        builder: (context, player, _) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SheetTitle(context.s.playbackSpeed),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final speed in kSpeedOptions)
+                      ChoiceChip(
+                        label: Text(Fmt.speed(speed)),
+                        selected: player.speed == speed,
+                        onSelected: (_) => player.setSpeed(speed),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Sleep timer with the 15/30/45/60 options from phase 4.
+Future<void> showSleepTimerSheet(BuildContext context) {
+  final player = context.read<PlaybackController>();
+
+  return showAppSheet<void>(
+    context,
+    builder: (_) => ChangeNotifierProvider.value(
+      value: player,
+      child: Consumer<PlaybackController>(
+        builder: (context, player, _) {
+          final remaining = player.sleepRemaining;
+
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SheetTitle(context.s.sleepTimer),
+                if (remaining != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+                    child: Text(
+                      context.s.sleepStopsIn(Fmt.duration(remaining)),
+                      style: TextStyle(
+                        color: context.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final minutes in kSleepMinutes)
+                        ActionChip(
+                          label: Text(context.s.minutesOption(minutes)),
+                          onPressed: () {
+                            player.startSleepTimer(Duration(minutes: minutes));
+                            Navigator.pop(context);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                if (remaining != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                    child: TextButton.icon(
+                      onPressed: () {
+                        player.cancelSleepTimer();
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: Text(context.s.cancelTimer),
+                    ),
+                  ),
+                const SizedBox(height: 18),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+/// The list of videos queued behind the one playing.
+Future<void> showQueueSheet(BuildContext context) {
+  final player = context.read<PlaybackController>();
+
+  return showAppSheet<void>(
+    context,
+    hasOwnScroll: true,
+    builder: (_) => ChangeNotifierProvider.value(
+      value: player,
+      child: Consumer<PlaybackController>(
+        builder: (context, player, _) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SheetTitle(context.s.queueWithCount(player.queue.length)),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: player.queue.length,
+                    itemBuilder: (context, index) {
+                      final video = player.queue[index];
+                      final isCurrent = index == player.index;
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ),
+                        leading: VideoThumbnail(
+                          video: video,
+                          width: 76,
+                          height: 46,
+                        ),
+                        title: Text(
+                          video.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: isCurrent
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isCurrent ? context.accent : null,
+                          ),
+                        ),
+                        subtitle: Text(Fmt.durationMs(video.durationMs)),
+                        trailing: isCurrent
+                            ? Icon(
+                                Icons.equalizer_rounded,
+                                color: context.accent,
+                                size: 18,
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          player.playAt(index);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _SheetTitle extends StatelessWidget {
+  const _SheetTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
+      child: Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}

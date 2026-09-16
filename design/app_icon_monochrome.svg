@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Main Video icon monochrome</title>
+  <desc>
+    Silhouette for Android 13 themed icons: the ribbon with the play opening
+    still cut out of it, flat and untinted. The launcher colours it to match
+    the user's wallpaper, so it carries no colour of its own.
+  </desc>
+  <path fill="#000000" fill-rule="evenodd"
+        transform="translate(256 256) scale(0.92) translate(-256 -256)"
+        d="M 223.0 138.8 L 374.0 226.0 Q 426 256 374.0 286.0
+           L 223.0 373.2 Q 171 403.2 171 343.2
+           L 171 168.8 Q 171 108.8 223.0 138.8 Z
+           M 254.8 202.1 L 324.3 242.2 Q 348.2 256 324.3 269.8
+           L 254.8 309.7 Q 230.9 323.7 230.9 283.9
+           L 230.9 228.1 Q 230.9 188.3 254.8 202.1 Z"/>
+</svg>

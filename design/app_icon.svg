@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Main Video app icon</title>
+  <desc>
+    Two overlapping rounded-triangular lobes reading as one folded ribbon, with
+    the play symbol cut through both of them. The triangle is not drawn on top
+    of the orange: a mask punches it through every layer, so what shows is the
+    ivory base behind. Vector, so it stays crisp at every launcher size; the
+    PNGs under android/app/src/main/res render from here.
+  </desc>
+
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FCFBF8"/>
+      <stop offset="0.55" stop-color="#F7F5F0"/>
+      <stop offset="1" stop-color="#F0EDE6"/>
+    </linearGradient>
+
+    <!-- Back lobe: carries the deep end of the range out to the right tip. -->
+    <linearGradient id="orangeBack" x1="0.15" y1="0.05" x2="0.95" y2="0.95">
+      <stop offset="0" stop-color="#EF9235"/>
+      <stop offset="0.35" stop-color="#E4772E"/>
+      <stop offset="0.7" stop-color="#D25827"/>
+      <stop offset="1" stop-color="#C24824"/>
+    </linearGradient>
+
+    <!-- Front lobe: the lighter amber that catches the light upper-left. -->
+    <linearGradient id="orangeFront" x1="0.1" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#F7B449"/>
+      <stop offset="0.3" stop-color="#F39C3B"/>
+      <stop offset="0.62" stop-color="#EC8433"/>
+      <stop offset="1" stop-color="#DE6C2B"/>
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0.1" y1="0" x2="0.7" y2="0.85">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="baseGlow" cx="0.3" cy="0.24" r="0.85">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="dropSoft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+    <filter id="blurTight" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <filter id="blurWide" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+
+    <!-- One lobe: a rounded triangle whose edges bow outward, so it reads as
+         a soft folded surface rather than a geometric triangle. -->
+    <path id="lobe"
+          d="M 223.0 138.8
+             Q 306.5 168.5 374.0 226.0
+             Q 426 256 374.0 286.0
+             Q 306.5 343.5 223.0 373.2
+             Q 171 403.2 171 343.2
+             Q 155 256 171 168.8
+             Q 171 108.8 223.0 138.8 Z"/>
+
+    <path id="playHole"
+          d="M 240.8 202.1 L 310.3 242.2 Q 334.2 256 310.3 269.8
+             L 240.8 309.7 Q 216.9 323.7 216.9 283.9
+             L 216.9 228.1 Q 216.9 188.3 240.8 202.1 Z"/>
+
+    <g id="lobeFrontGroup"
+       transform="translate(-6 -3) rotate(-13 256 256) translate(256 256) scale(0.95) translate(-256 -256)">
+      <use href="#lobe"/>
+    </g>
+
+    <mask id="punchHole">
+      <rect x="0" y="0" width="512" height="512" fill="#FFFFFF"/>
+      <use href="#playHole" fill="#000000"/>
+    </mask>
+
+    <clipPath id="clipBack"><use href="#lobe"/></clipPath>
+    <clipPath id="clipFront">
+      <use href="#lobe"
+           transform="translate(-6 -3) rotate(-13 256 256) translate(256 256) scale(0.95) translate(-256 -256)"/>
+    </clipPath>
+    <clipPath id="clipHole"><use href="#playHole"/></clipPath>
+    <clipPath id="clipBase">
+      <rect x="0" y="0" width="512" height="512" rx="114" ry="114"/>
+    </clipPath>
+  </defs>
+
+  <g id="iconBase">
+    <rect x="0" y="0" width="512" height="512" rx="114" ry="114" fill="url(#base)"/>
+    <g clip-path="url(#clipBase)">
+      <rect x="0" y="0" width="512" height="512" fill="url(#baseGlow)" opacity="0.5"/>
+    </g>
+    <rect x="0.75" y="0.75" width="510.5" height="510.5" rx="113.3" ry="113.3"
+          fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.5"/>
+    <rect x="0.75" y="0.75" width="510.5" height="510.5" rx="113.3" ry="113.3"
+          fill="none" stroke="#B9AE9B" stroke-opacity="0.2" stroke-width="1.5"/>
+  </g>
+
+  <g id="iconSymbol" transform="translate(6 0) translate(256 256) scale(1.02) translate(-256 -256)">
+    <g mask="url(#punchHole)">
+      <g transform="translate(0 13)" opacity="0.17" filter="url(#dropSoft)">
+        <use href="#lobe" fill="#8A4A22"/>
+        <use href="#lobeFrontGroup" fill="#8A4A22"/>
+      </g>
+
+      <use href="#lobe" fill="url(#orangeBack)"/>
+
+      <g clip-path="url(#clipBack)">
+        <g transform="translate(-6 -7)" filter="url(#blurWide)">
+          <use href="#lobe" fill="none" stroke="#9C3F1C"
+               stroke-opacity="0.3" stroke-width="10"/>
+        </g>
+        <!-- The front lobe casts onto the back one. Drawn before the front
+             lobe so it only shows where it falls past its edge, which is what
+             makes the seam read as a fold rather than an outline. -->
+        <g transform="translate(10 8)" opacity="0.3" filter="url(#blurWide)">
+          <use href="#lobeFrontGroup" fill="#A8491F"/>
+        </g>
+      </g>
+
+      <!-- Both lobes are solid: a see-through lobe would read as a sheet laid
+           over the base rather than as material. -->
+      <use href="#lobeFrontGroup" fill="url(#orangeFront)"/>
+
+      <!-- The overlap alone is lifted a touch, which is what gives the two
+           shapes their translucent, layered quality. -->
+      <g clip-path="url(#clipBack)">
+        <g clip-path="url(#clipFront)">
+          <use href="#lobeFrontGroup" fill="#FFEFD4" opacity="0.1"/>
+        </g>
+      </g>
+
+      <g clip-path="url(#clipFront)">
+        <use href="#lobeFrontGroup" fill="url(#sheen)"/>
+        <g transform="translate(4 4.5)" filter="url(#blurTight)">
+          <use href="#lobeFrontGroup" fill="none" stroke="#FFFFFF"
+               stroke-opacity="0.45" stroke-width="5"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Depth in the opening: soft occlusion just inside the edge, so the
+         orange reads as material cut away. No outline. -->
+    <g clip-path="url(#clipHole)">
+      <g filter="url(#blurWide)">
+        <use href="#playHole" fill="none" stroke="#A85A2C"
+             stroke-opacity="0.24" stroke-width="13"/>
+      </g>
+      <g transform="translate(2 2.5)" filter="url(#blurTight)">
+        <use href="#playHole" fill="none" stroke="#8E4620"
+             stroke-opacity="0.14" stroke-width="6"/>
+      </g>
+    </g>
+  </g>
+</svg>
