@@ -316,6 +316,18 @@ class AppTheme {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
       ),
+      // The Android page transition paints a solid colour behind the incoming
+      // page, which flashed the plain background before the picture. Over a
+      // picture that colour has to be clear.
+      pageTransitionsTheme: clearPages
+          ? const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: PredictiveBackPageTransitionsBuilder(
+                  fallbackColor: Colors.transparent,
+                ),
+              },
+            )
+          : null,
       // Back buttons across the app become the same floating glass circle as
       // the header actions. Arrow icons mirror themselves in Arabic.
       actionIconTheme: ActionIconThemeData(

@@ -160,7 +160,10 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                           prefs,
                         ),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.muted,
+                          // Stronger than muted so it stays readable over a background picture.
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.66),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -342,7 +345,24 @@ class _Header extends StatelessWidget {
                     : Icons.view_agenda_rounded,
                 onPressed: onToggleView,
               ),
-              const Spacer(),
+              // The app name sits in the gap between the buttons, on the same
+              // line, so it costs no height.
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.space12,
+                  ),
+                  child: Text(
+                    s.appTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
               GlassIconButton(
                 tooltip: s.sort,
                 icon: Icons.swap_vert_rounded,
@@ -357,8 +377,7 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          // No screen title: the space goes to the videos. Search opens here,
-          // under the buttons, only while it is in use.
+          // Search opens here, under the buttons, only while it is in use.
           AnimatedSize(
             duration: const Duration(milliseconds: 240),
             curve: Curves.easeOutCubic,

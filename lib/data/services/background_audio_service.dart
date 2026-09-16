@@ -3,21 +3,61 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+/// What the system media card shows for the current video.
+class NowPlaying {
+  const NowPlaying({
+    required this.title,
+    required this.subtitle,
+    required this.playing,
+    required this.position,
+    required this.duration,
+    required this.speed,
+    required this.favorite,
+    required this.color,
+    this.artwork,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool playing;
+  final Duration position;
+  final Duration duration;
+  final double speed;
+  final bool favorite;
+
+  /// The app's accent, used where Android lets an app colour its card.
+  final Color color;
+
+  /// The thumbnail. Null leaves the picture already shown; empty clears it.
+  final Uint8List? artwork;
+
+  Map<String, Object?> toArguments() => {
+    'title': title,
+    'subtitle': subtitle,
+    'playing': playing,
+    'positionMs': position.inMilliseconds,
+    'durationMs': duration.inMilliseconds,
+    'speed': speed,
+    'favorite': favorite,
+    'color': color.toARGB32(),
+    'artwork': ?artwork,
+  };
+}
+
 /// Talks to the Android foreground service that keeps audio alive when the
-/// screen is off or the app is in the background.
+/// screen is off or the app is in the background, and that publishes the
+/// media card in the notification shade and on the lock screen.
 ///
 /// Without it, "background playback" is only a promise: the player itself keeps
-/// going, but Android is free to kill the process at any moment. The service
-/// also puts real controls in the notification shade and gives up playback when
-/// something else takes audio focus.
+/// going, but Android is free to kill the process at any moment.
 class BackgroundAudioService {
   const BackgroundAudioService._();
 
   static const MethodChannel _channel = MethodChannel('main_video/playback');
 
-  /// Called when the notification buttons are tapped, or when audio focus is
-  /// lost to another app: 'toggle', 'next', 'previous', 'pause', 'stop',
-  /// 'focusGained'.
+  /// Called when a media button is pressed — in the notification, on the lock
+  /// screen or on a headset: 'toggle', 'play', 'pause', 'next', 'previous',
+  /// 'favorite', 'stop', or `seek:<milliseconds>`.
   static void Function(String action)? onAction;
 
   static bool _wired = false;
@@ -30,7 +70,10 @@ class BackgroundAudioService {
     _wired = true;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'playbackAction') {
-        onAction?.call(call.arguments as String? ?? '');
+        final action = call.arguments as String? ?? '';
+        // The card was closed from the shade: the service is gone.
+        if (action == 'stop') _running = false;
+        onAction?.call(action);
       }
       return null;
     });
@@ -45,24 +88,22 @@ class BackgroundAudioService {
     return (await Permission.notification.request()).isGranted;
   }
 
-  static Future<void> start({
-    required String title,
-    required String subtitle,
-    required bool playing,
-  }) async {
+  /// Starts the service, or updates it if it is already running.
+  static Future<void> show(NowPlaying nowPlaying) async {
     if (!Platform.isAndroid) return;
     ensureWired();
-    await _invoke('start', title: title, subtitle: subtitle, playing: playing);
-    _running = true;
-  }
-
-  static Future<void> update({
-    required String title,
-    required String subtitle,
-    required bool playing,
-  }) async {
-    if (!Platform.isAndroid || !_running) return;
-    await _invoke('update', title: title, subtitle: subtitle, playing: playing);
+    try {
+      await _channel.invokeMethod<void>(
+        _running ? 'update' : 'start',
+        nowPlaying.toArguments(),
+      );
+      _running = true;
+    } on PlatformException {
+      _running = false;
+    } on MissingPluginException {
+      // Running without the native side (tests).
+      _running = false;
+    }
   }
 
   static Future<void> stop() async {
@@ -74,25 +115,6 @@ class BackgroundAudioService {
       // Nothing to do: the service is gone either way.
     } on MissingPluginException {
       // Running without the native side (tests).
-    }
-  }
-
-  static Future<void> _invoke(
-    String method, {
-    required String title,
-    required String subtitle,
-    required bool playing,
-  }) async {
-    try {
-      await _channel.invokeMethod<void>(method, {
-        'title': title,
-        'subtitle': subtitle,
-        'playing': playing,
-      });
-    } on PlatformException {
-      _running = false;
-    } on MissingPluginException {
-      _running = false;
     }
   }
 }

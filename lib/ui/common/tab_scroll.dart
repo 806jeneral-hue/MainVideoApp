@@ -14,6 +14,11 @@ class TabScroll extends InheritedWidget {
   static ScrollController? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<TabScroll>()?.controller;
 
+  /// Whether [context] is inside one of the main tabs rather than a page
+  /// opened on top of them. Safe to call from event handlers.
+  static bool isTab(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<TabScroll>() != null;
+
   @override
   bool updateShouldNotify(TabScroll oldWidget) =>
       oldWidget.controller != controller;

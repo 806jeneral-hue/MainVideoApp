@@ -44,21 +44,15 @@ class MainActivity : FlutterActivity() {
         ).also { ch ->
             ch.setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "start" -> {
-                        sendToService(PlaybackService.ACTION_START, call)
-                        result.success(true)
-                    }
-
-                    "update" -> {
-                        sendToService(PlaybackService.ACTION_UPDATE, call)
+                    // One path for both: a running service is updated in
+                    // place, otherwise it is started with this state.
+                    "start", "update" -> {
+                        showNowPlaying(call)
                         result.success(true)
                     }
 
                     "stop" -> {
-                        startService(
-                            Intent(this, PlaybackService::class.java)
-                                .setAction(PlaybackService.ACTION_STOP)
-                        )
+                        PlaybackService.instance?.shutdown()
                         result.success(true)
                     }
 
@@ -67,24 +61,49 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // The notification buttons and audio-focus changes happen natively;
-        // playback itself lives in Dart, so they are forwarded there.
+        // The notification, lock-screen and headset buttons are pressed
+        // natively; playback itself lives in Dart, so they are forwarded there.
         PlaybackService.onAction = { action ->
             runOnUiThread { playbackChannel?.invokeMethod("playbackAction", action) }
         }
     }
 
-    private fun sendToService(action: String, call: io.flutter.plugin.common.MethodCall) {
-        val intent = Intent(this, PlaybackService::class.java)
-            .setAction(action)
-            .putExtra(PlaybackService.EXTRA_TITLE, call.argument<String>("title") ?: "")
-            .putExtra(PlaybackService.EXTRA_SUBTITLE, call.argument<String>("subtitle") ?: "")
-            .putExtra(PlaybackService.EXTRA_PLAYING, call.argument<Boolean>("playing") ?: false)
+    private fun showNowPlaying(call: io.flutter.plugin.common.MethodCall) {
+        val state = PlaybackService.NowPlaying(
+            title = call.argument<String>("title") ?: "",
+            subtitle = call.argument<String>("subtitle") ?: "",
+            playing = call.argument<Boolean>("playing") ?: false,
+            positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L,
+            durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L,
+            speed = call.argument<Number>("speed")?.toFloat() ?: 1f,
+            favorite = call.argument<Boolean>("favorite") ?: false,
+            color = call.argument<Number>("color")?.toInt() ?: 0xFF2E7A6C.toInt(),
+        )
+        // Absent means the picture has not changed since the last call.
+        val artwork = call.argument<ByteArray>("artwork")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        // Updating the running service directly, rather than through another
+        // start intent, is what keeps the play/pause icon in step even while
+        // the app is in the background.
+        val running = PlaybackService.instance
+        if (running != null) {
+            running.apply(state, artwork)
+            return
+        }
+
+        PlaybackService.pendingState = state
+        PlaybackService.pendingArtwork = artwork
+        val intent = Intent(this, PlaybackService::class.java)
+            .setAction(PlaybackService.ACTION_START)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: RuntimeException) {
+            // Android refused to start it from the background; the next update
+            // made while the app is open starts it.
         }
     }
 

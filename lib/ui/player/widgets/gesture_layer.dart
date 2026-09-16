@@ -34,11 +34,19 @@ class _GestureLayerState extends State<GestureLayer> {
   /// A swipe across the full screen width covers this much of the video.
   static const double _seekFraction = 0.9;
 
-  /// How far down the middle-swipe has to travel to minimise on release.
-  static const double _dismissDistance = 110;
+  /// How much of the screen height the finger travels to shrink the player
+  /// all the way onto the mini player.
+  static const double _dismissTravel = 0.6;
+
+  /// Past this much of the way, letting go finishes the shrink.
+  static const double _dismissCommit = 0.22;
 
   /// A quick flick minimises even if it did not travel that far.
   static const double _dismissVelocity = 700;
+
+  /// Where the player already was when a swipe began — non-zero when the
+  /// finger caught it while it was gliding back.
+  double _dismissBase = 0;
 
   /// Movement before the gesture commits to an axis, so a slightly crooked
   /// swipe does not get read as the wrong thing.
@@ -46,6 +54,7 @@ class _GestureLayerState extends State<GestureLayer> {
 
   _Gesture _gesture = _Gesture.undecided;
   Offset _start = Offset.zero;
+  Offset _startGlobal = Offset.zero;
   Offset _travel = Offset.zero;
 
   Duration _seekStart = Duration.zero;
@@ -59,7 +68,15 @@ class _GestureLayerState extends State<GestureLayer> {
 
   void _onScaleStart(ScaleStartDetails details) {
     _gesture = _Gesture.undecided;
+    _dismissBase = 0;
+    // Catching the player while it glides back picks the swipe up from there.
+    final caught = context.read<PlayerMorph>().catchGlide();
+    if (caught != null) {
+      _gesture = _Gesture.dismiss;
+      _dismissBase = caught;
+    }
     _start = details.localFocalPoint;
+    _startGlobal = details.focalPoint;
     _travel = Offset.zero;
     _seekStart = _player.position;
     _zoomStart = _player.zoom.value.scale;
@@ -85,7 +102,10 @@ class _GestureLayerState extends State<GestureLayer> {
     // A pinch does not turn back into a swipe when a finger lifts.
     if (_gesture == _Gesture.zoom) return;
 
-    _travel += details.focalPointDelta;
+    // Measured on the screen, not on this layer: the layer itself moves down
+    // with the finger while minimising, so in its own coordinates the finger
+    // would barely seem to move and the swipe would stall.
+    _travel = details.focalPoint - _startGlobal;
 
     if (_gesture == _Gesture.undecided) {
       if (_travel.distance < _slop) return;
@@ -151,9 +171,11 @@ class _GestureLayerState extends State<GestureLayer> {
   }
 
   void _updateDismiss() {
-    // Only downward travel minimises; upward is ignored.
-    final down = _travel.dy.clamp(0.0, _size.height);
-    _player.setDismissDrag(down / (_dismissDistance * 2));
+    // Downward travel shrinks the player towards the mini player; moving back
+    // up grows it again.
+    final progress =
+        _dismissBase + _travel.dy / (_size.height * _dismissTravel);
+    context.read<PlayerMorph>().dragTo(progress.clamp(0.0, 1.0));
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
@@ -167,12 +189,14 @@ class _GestureLayerState extends State<GestureLayer> {
         _player.hideHud();
 
       case _Gesture.dismiss:
-        final flicked = details.velocity.pixelsPerSecond.dy > _dismissVelocity;
-        _player.resetDismissDrag();
-        if (_travel.dy > _dismissDistance || flicked) {
-          Haptics.light();
-          closePlayer(context, stopPlayback: false);
-        }
+        final velocity = details.velocity.pixelsPerSecond.dy;
+        final progress = _player.dismissDrag.value;
+        // A flick decides on its own; otherwise it is how far the player got.
+        final minimise =
+            velocity > _dismissVelocity ||
+            (velocity > -_dismissVelocity && progress > _dismissCommit);
+        if (minimise) Haptics.light();
+        context.read<PlayerMorph>().release(minimise: minimise);
 
       case _Gesture.zoom:
         // Pinching back down to 1 lets go of the zoom entirely.

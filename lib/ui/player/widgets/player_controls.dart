@@ -91,7 +91,9 @@ class _TopBar extends StatelessWidget {
             p.queue.length,
           ),
         );
-    final shadows = _readableOnVideo(theme);
+    // The player is always black behind the video, so its title is light in
+    // both themes.
+    final shadows = _readableOnVideo();
 
     return Row(
       children: [
@@ -102,7 +104,8 @@ class _TopBar extends StatelessWidget {
           size: 46,
           iconSize: 28,
           tooltip: context.s.minimise,
-          onTap: () => closePlayer(context, stopPlayback: false),
+          // Shrinks onto the mini player the same way the swipe does.
+          onTap: () => context.read<PlayerMorph>().release(minimise: true),
         ),
         const SizedBox(width: AppTheme.space12),
         Expanded(
@@ -115,6 +118,7 @@ class _TopBar extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyLarge?.copyWith(
+                  color: Colors.white,
                   fontWeight: FontWeight.w700,
                   shadows: shadows,
                 ),
@@ -127,9 +131,7 @@ class _TopBar extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.72,
-                      ),
+                      color: Colors.white.withValues(alpha: 0.72),
                       fontWeight: FontWeight.w500,
                       shadows: shadows,
                     ),
@@ -468,15 +470,10 @@ class _SeekBar extends StatelessWidget {
   }
 }
 
-/// The scrubber's times sit on the frame rather than on a panel, so they carry
-/// a soft shadow to stay readable over a bright scene.
-List<Shadow> _readableOnVideo(ThemeData theme) => [
-  Shadow(
-    color: theme.brightness == Brightness.dark
-        ? Colors.black.withValues(alpha: 0.75)
-        : Colors.white.withValues(alpha: 0.75),
-    blurRadius: 8,
-  ),
+/// Text that sits straight on the frame carries a soft dark shadow, so it stays
+/// readable over a bright scene.
+List<Shadow> _readableOnVideo() => [
+  Shadow(color: Colors.black.withValues(alpha: 0.75), blurRadius: 8),
 ];
 
 class _AbBanner extends StatelessWidget {

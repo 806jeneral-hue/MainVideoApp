@@ -50,6 +50,18 @@ class VideoSliver extends StatelessWidget {
       final width = MediaQuery.sizeOf(context).width;
       final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
 
+      // Each card is exactly as tall as what it holds — the 16:9 thumbnail,
+      // a two-line title and the meta line — so no empty band is left under
+      // the text on any screen width or font size.
+      const spacing = AppTheme.space12;
+      final cellWidth =
+          (width - AppTheme.pageMargin * 2 - spacing * (columns - 1)) / columns;
+      final scaler = MediaQuery.textScalerOf(context);
+      final thumbHeight = (cellWidth - 16) * 9 / 16;
+      final textHeight =
+          scaler.scale(14) * 1.25 * 2 + 5 + scaler.scale(12.5) * 1.3;
+      final cardHeight = 8 + thumbHeight + 9 + textHeight + 12;
+
       return SliverPadding(
         padding: EdgeInsets.fromLTRB(
           AppTheme.pageMargin,
@@ -60,10 +72,9 @@ class VideoSliver extends StatelessWidget {
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: AppTheme.space12,
-            mainAxisSpacing: AppTheme.space16,
-            // Room for the thumbnail plus a two-line title and the meta row.
-            childAspectRatio: 0.76,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            mainAxisExtent: cardHeight,
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
             final video = videos[index];

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="310"
+    android:viewportHeight="310"
+    android:tint="?android:attr/colorControlNormal">
+    <!-- The launcher mark cropped to fill the status-bar slot. -->
+    <group
+        android:translateX="-137"
+        android:translateY="-101">
+        <path
+        android:fillColor="@android:color/white"
+        android:fillType="evenOdd"
+        android:pathData="M223,138.8L374,226Q426,256 374,286L223,373.2Q171,403.2 171,343.2L171,168.8Q171,108.8 223,138.8ZM254.8,202.1L324.3,242.2Q348.2,256 324.3,269.8L254.8,309.7Q230.9,323.7 230.9,283.9L230.9,228.1Q230.9,188.3 254.8,202.1Z" />
+    </group>
+</vector>

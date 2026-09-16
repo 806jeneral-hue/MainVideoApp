@@ -19,6 +19,7 @@ import '../common/tab_scroll.dart';
 import '../common/selection.dart';
 import '../common/video_slivers.dart';
 import '../home/widgets/sort_sheet.dart';
+import '../player/mini_player.dart';
 import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'video_picker_page.dart';
@@ -103,6 +104,9 @@ class _CollectionPageState extends State<CollectionPage>
     final scrollController = TabScroll.maybeOf(context) ?? _ownScrollController;
 
     return Scaffold(
+      // The list runs on behind the mini player and fades out above it, the
+      // same as on the main tabs.
+      extendBody: true,
       appBar: selectionMode
           ? buildSelectionAppBar(
               context: context,
@@ -161,7 +165,14 @@ class _CollectionPageState extends State<CollectionPage>
                   ? widget.playlistId
                   : null,
             )
-          : null,
+          // Opened on top of the tabs, this page covers the main mini player,
+          // so it carries its own. As the Favorites tab it already has one.
+          : (TabScroll.isTab(context)
+                ? null
+                : const SafeArea(
+                    top: false,
+                    child: MiniPlayer(aboveNavigation: false),
+                  )),
       body: videos.isEmpty
           ? _empty(context, widget.kind)
           : DragSelectArea(

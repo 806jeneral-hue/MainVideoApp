@@ -17,6 +17,7 @@ import '../data/models/enums.dart';
 import '../data/models/video.dart';
 import '../data/services/background_audio_service.dart';
 import '../data/services/pip_service.dart';
+import '../data/services/thumbnail_service.dart';
 import 'library_controller.dart';
 import 'settings_controller.dart';
 
@@ -88,6 +89,12 @@ class PlaybackController extends ChangeNotifier {
   /// Progress of the swipe-down-to-minimise gesture, 0..1.
   final ValueNotifier<double> dismissDrag = ValueNotifier<double>(0);
 
+  /// How far the full-screen player has turned into the mini player: 0 is
+  /// full screen, 1 is sitting exactly on the mini player. Driven by the
+  /// player screen from the swipe and from its own opening animation; the
+  /// mini player fades in and out with it.
+  final ValueNotifier<double> morph = ValueNotifier<double>(0);
+
   /// Non-null only while the user is dragging the seek bar or swiping to seek.
   final ValueNotifier<Duration?> scrubPosition = ValueNotifier<Duration?>(null);
 
@@ -123,10 +130,6 @@ class PlaybackController extends ChangeNotifier {
 
   bool get hasSession => _hasSession && _queue.isNotEmpty;
   bool get isFullscreen => _fullscreen;
-
-  /// The mini player shows whenever something is loaded and the full screen
-  /// is not on top of it.
-  bool get showMiniPlayer => hasSession && !_fullscreen;
 
   Video? get currentOrNull =>
       _queue.isEmpty ? null : _queue[_index.clamp(0, _queue.length - 1)];
@@ -234,6 +237,7 @@ class PlaybackController extends ChangeNotifier {
   /// notification is right and Android does not reclaim the process mid-video.
   Future<void> _syncBackgroundService() async {
     if (!_settings.backgroundPlayback || !hasSession) {
+      _artworkVideoId = null;
       await BackgroundAudioService.stop();
       return;
     }
@@ -241,42 +245,104 @@ class PlaybackController extends ChangeNotifier {
     final video = currentOrNull;
     if (video == null) return;
 
-    final subtitle = _queueTitle.isEmpty ? video.folderName : _queueTitle;
-    if (BackgroundAudioService.isRunning) {
-      await BackgroundAudioService.update(
-        title: video.displayName,
-        subtitle: subtitle,
-        playing: isPlaying,
-      );
-      return;
+    // Recorded before any await, so player ticks arriving meanwhile do not
+    // queue the same update again.
+    final playing = isPlaying;
+    _notifiedPlaying = playing;
+    _notifiedFavorite = _library.isFavorite(video.id);
+    _notifiedPosition = position;
+    _notifiedAt = DateTime.now();
+
+    // The thumbnail only travels when the video changes.
+    Uint8List? artwork;
+    if (_artworkVideoId != video.id || !BackgroundAudioService.isRunning) {
+      _artworkVideoId = video.id;
+      artwork =
+          await ThumbnailService.load(video.assetId, width: 512, height: 288) ??
+          Uint8List(0);
+      // Moved on to another video while the picture loaded; that one syncs.
+      if (currentOrNull?.id != video.id) return;
     }
 
-    await BackgroundAudioService.start(
-      title: video.displayName,
-      subtitle: subtitle,
-      playing: isPlaying,
+    await BackgroundAudioService.show(
+      NowPlaying(
+        title: video.displayName,
+        subtitle: _queueTitle.isEmpty ? video.folderName : _queueTitle,
+        playing: isPlaying,
+        position: position,
+        duration: duration > Duration.zero
+            ? duration
+            : Duration(milliseconds: video.durationMs),
+        speed: _speed,
+        favorite: _notifiedFavorite,
+        color: _settings.accent.onLight,
+        artwork: artwork,
+      ),
     );
   }
 
-  /// Wired once at start-up so the notification buttons and audio focus reach
-  /// playback.
+  // What the media card was last told, so it is only updated on a change.
+  String? _artworkVideoId;
+  bool _notifiedPlaying = false;
+  bool _notifiedFavorite = false;
+  Duration _notifiedPosition = Duration.zero;
+  DateTime _notifiedAt = DateTime.now();
+
+  /// Called on every player tick. Updates the media card whenever playback
+  /// changed underneath it — paused by a call, finished, sought, or favourited
+  /// from the library — not only when a button in the app was pressed.
+  void _keepMediaCardInStep(VideoPlayerValue value) {
+    if (!BackgroundAudioService.isRunning) return;
+    final video = currentOrNull;
+    if (video == null) return;
+
+    if (value.isPlaying != _notifiedPlaying ||
+        _library.isFavorite(video.id) != _notifiedFavorite) {
+      unawaited(_syncBackgroundService());
+      return;
+    }
+
+    // The card moves its own seek bar from the last position and speed; only
+    // a jump (a seek, an A-B loop) needs telling.
+    final elapsed = DateTime.now().difference(_notifiedAt);
+    final expected = value.isPlaying
+        ? _notifiedPosition + elapsed * _speed
+        : _notifiedPosition;
+    if ((value.position - expected).abs() > const Duration(seconds: 2)) {
+      unawaited(_syncBackgroundService());
+    }
+  }
+
+  /// Wired once at start-up so the notification, lock-screen and headset
+  /// buttons reach playback.
   void bindBackgroundService() {
     BackgroundAudioService.ensureWired();
     BackgroundAudioService.onAction = (action) {
       switch (action) {
         case 'toggle':
           togglePlay();
+        case 'play':
+          if (!isPlaying) togglePlay();
+        case 'pause':
+          if (isPlaying) togglePlay();
         case 'next':
           next();
         case 'previous':
           previous();
-        case 'pause':
-          // Something else took audio focus — a call, another player.
-          _vp?.pause();
-          _syncBackgroundService();
-          notifyListeners();
+        case 'favorite':
+          final video = currentOrNull;
+          if (video != null) {
+            _library
+                .toggleFavorite(video.id)
+                .then((_) => _syncBackgroundService());
+          }
         case 'stop':
           stop();
+        default:
+          if (action.startsWith('seek:')) {
+            final ms = int.tryParse(action.substring('seek:'.length));
+            if (ms != null) seekTo(Duration(milliseconds: ms));
+          }
       }
     };
   }
@@ -381,6 +447,7 @@ class PlaybackController extends ChangeNotifier {
     _forcedOrientation = null;
     _locked = false;
     dismissDrag.value = 0;
+    morph.value = 0;
     await _restoreBrightness();
     notifyListeners();
   }
@@ -434,7 +501,13 @@ class PlaybackController extends ChangeNotifier {
     await old?.dispose();
 
     final video = _queue[_index];
-    final controller = VideoPlayerController.file(File(video.path));
+    final controller = VideoPlayerController.file(
+      File(video.path),
+      // Without this the plugin pauses the video by itself the moment the
+      // app goes to the background, whatever the setting says. Whether to
+      // keep playing is decided in [handleAppPaused] instead.
+      videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
+    );
 
     try {
       await controller.initialize();
@@ -531,6 +604,7 @@ class PlaybackController extends ChangeNotifier {
       _onCompleted().whenComplete(() => _handlingCompletion = false);
     }
 
+    _keepMediaCardInStep(controller.value);
     notifyListeners();
   }
 
@@ -923,6 +997,7 @@ class PlaybackController extends ChangeNotifier {
     await WakelockPlus.disable();
 
     controlsVisible.dispose();
+    morph.dispose();
     zoom.dispose();
     dismissDrag.dispose();
     scrubPosition.dispose();

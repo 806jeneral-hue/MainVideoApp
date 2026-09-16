@@ -38,6 +38,11 @@ class AppBottomNav extends StatelessWidget {
   static const double barHeight = 68;
   static const double indicatorSize = 52;
 
+  /// The whole footprint including the space around the bar. The player
+  /// uses it to know where the mini player sits above it.
+  static const double outerHeight =
+      AppTheme.space4 + barHeight + AppTheme.space12;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
