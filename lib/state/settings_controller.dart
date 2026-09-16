@@ -38,6 +38,8 @@ class SettingsController extends ChangeNotifier {
   // privacy and personalisation
   bool _recycleBinEnabled = false;
   String _accentKey = AccentPalette.defaultKey;
+  String _backgroundImage = '';
+  double _backgroundBlur = 14;
 
   // language
   String? _localeCode;
@@ -60,6 +62,8 @@ class SettingsController extends ChangeNotifier {
     _hapticsEnabled = _repo.hapticsEnabled;
     _recycleBinEnabled = _repo.recycleBinEnabled;
     _accentKey = _repo.accentKey;
+    _backgroundImage = _repo.backgroundImage;
+    _backgroundBlur = _repo.backgroundBlur;
     _localeCode = _repo.localeCode;
   }
 
@@ -83,6 +87,11 @@ class SettingsController extends ChangeNotifier {
 
   String get accentKey => _accentKey;
   AccentOption get accent => AccentPalette.byKey(_accentKey);
+
+  /// Null when the plain page colour is used.
+  String? get backgroundImage =>
+      _backgroundImage.isEmpty ? null : _backgroundImage;
+  double get backgroundBlur => _backgroundBlur;
   Duration get seekStep => Duration(seconds: _seekSeconds);
 
   /// Null means the interface follows the device language.
@@ -186,6 +195,18 @@ class SettingsController extends ChangeNotifier {
     _accentKey = key;
     notifyListeners();
     await _repo.setAccentKey(key);
+  }
+
+  Future<void> setBackgroundImage(String? path) async {
+    _backgroundImage = path ?? '';
+    notifyListeners();
+    await _repo.setBackgroundImage(_backgroundImage);
+  }
+
+  Future<void> setBackgroundBlur(double value) async {
+    _backgroundBlur = value;
+    notifyListeners();
+    await _repo.setBackgroundBlur(value);
   }
 
   Future<void> setSeekSeconds(int v) async {

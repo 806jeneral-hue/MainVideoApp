@@ -13,6 +13,7 @@ import '../common/empty_state.dart';
 import '../common/bottom_fade.dart';
 import '../common/drag_select.dart';
 import '../common/fast_scroller.dart';
+import '../common/glass.dart';
 import '../common/tab_scroll.dart';
 import '../common/selection.dart';
 import '../common/video_slivers.dart';
@@ -116,56 +117,24 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
           child: BottomFade(
             child: FastScroller(
               controller: scrollController,
-              topPadding: 72,
+              // Starts below the floating header buttons.
+              topPadding: MediaQuery.paddingOf(context).top + 76,
               bottomPadding: listBottomInset(context, extra: 0),
               child: CustomScrollView(
                 controller: scrollController,
                 slivers: [
                   if (!selectionMode)
-                    SliverAppBar(
-                      floating: true,
-                      snap: true,
-                      toolbarHeight: 64,
-                      titleSpacing: AppTheme.pageMargin + 4,
-                      title: _searching
-                          ? _SearchField(
-                              controller: _searchController,
-                              onChanged: library.setQuery,
-                            )
-                          : Text(
-                              context.s.appTitle,
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                      actions: [
-                        _HeaderIcon(
-                          tooltip: _searching
-                              ? context.s.closeSearch
-                              : context.s.search,
-                          icon: _searching
-                              ? Icons.close_rounded
-                              : Icons.search_rounded,
-                          onPressed: () => _toggleSearch(library),
-                        ),
-                        if (!_searching) ...[
-                          _HeaderIcon(
-                            tooltip: context.s.sort,
-                            icon: Icons.swap_vert_rounded,
-                            onPressed: () =>
-                                showSortSheet(context, CollectionKey.home),
-                          ),
-                          _HeaderIcon(
-                            tooltip: library.viewMode == ViewMode.list
-                                ? context.s.gridView
-                                : context.s.listView,
-                            icon: library.viewMode == ViewMode.list
-                                ? Icons.grid_view_rounded
-                                : Icons.view_list_rounded,
-                            onPressed: library.toggleViewMode,
-                            filled: true,
-                          ),
-                        ],
-                        const SizedBox(width: AppTheme.pageMargin),
-                      ],
+                    SliverToBoxAdapter(
+                      child: _Header(
+                        searching: _searching,
+                        searchController: _searchController,
+                        onQueryChanged: library.setQuery,
+                        onToggleSearch: () => _toggleSearch(library),
+                        onSort: () =>
+                            showSortSheet(context, CollectionKey.home),
+                        viewMode: library.viewMode,
+                        onToggleView: library.toggleViewMode,
+                      ),
                     ),
                   SliverToBoxAdapter(
                     child: _FilterRow(
@@ -328,56 +297,90 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
   }
 }
 
-/// Header action. The view toggle gets a soft filled button so it reads as the
-/// primary control, the rest stay as plain dark icons.
-class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.filled = false,
+/// Clean media-app header: floating glass actions on one row, the large
+/// screen title under them. Search grows out of the same spot as the title,
+/// so opening it feels like the header changing shape rather than a new bar.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.searching,
+    required this.searchController,
+    required this.onQueryChanged,
+    required this.onToggleSearch,
+    required this.onSort,
+    required this.viewMode,
+    required this.onToggleView,
   });
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool filled;
+  final bool searching;
+  final TextEditingController searchController;
+  final ValueChanged<String> onQueryChanged;
+  final VoidCallback onToggleSearch;
+  final VoidCallback onSort;
+  final ViewMode viewMode;
+  final VoidCallback onToggleView;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (!filled) {
-      return IconButton(
-        tooltip: tooltip,
-        icon: Icon(icon, size: 24),
-        color: theme.colorScheme.onSurface,
-        onPressed: onPressed,
-      );
-    }
+    final s = context.s;
 
     return Padding(
-      padding: const EdgeInsets.only(left: 2),
-      child: Material(
-        color: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(15),
-          child: Tooltip(
-            message: tooltip,
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(icon, size: 21, color: theme.colorScheme.onSurface),
-            ),
+      padding: EdgeInsets.fromLTRB(
+        AppTheme.pageMargin,
+        MediaQuery.paddingOf(context).top + AppTheme.space12,
+        AppTheme.pageMargin,
+        AppTheme.space16,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              GlassIconButton(
+                tooltip: viewMode == ViewMode.list ? s.gridView : s.listView,
+                icon: viewMode == ViewMode.list
+                    ? Icons.grid_view_rounded
+                    : Icons.view_agenda_rounded,
+                onPressed: onToggleView,
+              ),
+              const Spacer(),
+              GlassIconButton(
+                tooltip: s.sort,
+                icon: Icons.swap_vert_rounded,
+                onPressed: onSort,
+              ),
+              const SizedBox(width: AppTheme.space12),
+              GlassIconButton(
+                tooltip: searching ? s.closeSearch : s.search,
+                icon: searching ? Icons.close_rounded : Icons.search_rounded,
+                selected: searching,
+                onPressed: onToggleSearch,
+              ),
+            ],
           ),
-        ),
+          // No screen title: the space goes to the videos. Search opens here,
+          // under the buttons, only while it is in use.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: searching
+                ? Padding(
+                    padding: const EdgeInsets.only(top: AppTheme.space16),
+                    child: _SearchField(
+                      controller: searchController,
+                      onChanged: onQueryChanged,
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// Glass search field. Wired to the same query the library already filters
+/// by — this only changes how it looks.
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.controller, required this.onChanged});
 
@@ -386,19 +389,30 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
+    final theme = Theme.of(context);
+
+    return GlassSurface(
+      radius: AppTheme.pillRadius,
+      floating: true,
       child: TextField(
         controller: controller,
         autofocus: true,
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
-        style: Theme.of(context).textTheme.bodyMedium,
+        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+        cursorColor: theme.colorScheme.primary,
         decoration: InputDecoration(
           hintText: context.s.searchVideos,
-          prefixIcon: const Icon(Icons.search_rounded, size: 20),
-          contentPadding: EdgeInsets.zero,
-          isDense: true,
+          filled: false,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 22,
+            color: theme.colorScheme.primary,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
       ),
     );
@@ -426,14 +440,21 @@ class _FilterRow extends StatelessWidget {
     };
 
     return SizedBox(
-      height: 46,
+      // Tall enough that the pills' shadows are not cut off by the list.
+      height: 60,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.pageMargin),
+        padding: const EdgeInsets.fromLTRB(
+          AppTheme.pageMargin,
+          AppTheme.space4,
+          AppTheme.pageMargin,
+          AppTheme.space8,
+        ),
+        clipBehavior: Clip.none,
         children: [
           for (final entry in filters.entries)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsetsDirectional.only(end: AppTheme.space8),
               child: _FilterPill(
                 label: entry.value,
                 selected: selected == entry.key,
@@ -446,8 +467,8 @@ class _FilterRow extends StatelessWidget {
   }
 }
 
-/// Soft rounded pill. Selected gets the pastel wash and a tick; unselected
-/// stays a plain light surface.
+/// Glass pill. The selected one is tinted with the accent and carries a tick;
+/// the rest stay quiet.
 class _FilterPill extends StatelessWidget {
   const _FilterPill({
     required this.label,
@@ -463,29 +484,49 @@ class _FilterPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: selected ? context.accentWash : theme.colorScheme.surface,
-      borderRadius: AppTheme.pillRadius,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppTheme.pillRadius,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(selected ? 12 : 16, 9, 16, 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selected) ...[
-                Icon(Icons.check_rounded, size: 17, color: context.accent),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: selected ? theme.colorScheme.onSurface : context.muted,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+    return PressScale(
+      child: GlassSurface(
+        radius: AppTheme.pillRadius,
+        selected: selected,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTheme.pillRadius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.space20,
+                vertical: 11,
+              ),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (selected) ...[
+                      Icon(
+                        Icons.check_rounded,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      label,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: selected
+                            ? theme.colorScheme.onSurface
+                            : context.muted,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

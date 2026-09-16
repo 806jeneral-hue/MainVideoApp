@@ -6,6 +6,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/video.dart';
 import '../../state/playback_controller.dart';
+import '../common/glass.dart';
 import '../common/video_thumbnail.dart';
 import 'player_page.dart';
 
@@ -55,14 +56,10 @@ class _MiniPlayerBar extends StatelessWidget {
         AppTheme.pageMargin,
         0,
         AppTheme.pageMargin,
-        8,
+        AppTheme.space8,
       ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: AppTheme.cardRadius,
-          boxShadow: context.floatingShadow,
-        ),
+      child: GlassSurface(
+        floating: true,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -90,8 +87,9 @@ class _MiniPlayerBar extends StatelessWidget {
                           VideoThumbnail(
                             key: ValueKey(video.id),
                             video: video,
-                            width: 58,
-                            height: 34,
+                            width: 60,
+                            height: 38,
+                            borderRadius: BorderRadius.circular(10),
                             showDuration: false,
                           ),
                           const SizedBox(width: 10),

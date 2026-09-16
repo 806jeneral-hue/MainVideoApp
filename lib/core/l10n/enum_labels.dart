@@ -31,5 +31,9 @@ extension VideoFitLabel on VideoFit {
   String label(Strings s) => switch (this) {
     VideoFit.fit => s.displayFit,
     VideoFit.fill => s.displayFill,
+    VideoFit.stretch => s.displayStretch,
+    VideoFit.ratio16x9 => '16:9',
+    VideoFit.ratio4x3 => '4:3',
+    VideoFit.original => s.displayOriginal,
   };
 }

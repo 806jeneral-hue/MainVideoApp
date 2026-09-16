@@ -17,4 +17,17 @@ enum VideoFit {
 
   /// The frame covers the screen; the edges that do not fit are cropped.
   fill,
+
+  /// The frame is pulled to the screen's shape: nothing cropped, nothing
+  /// hidden, but the picture is distorted if the shapes differ.
+  stretch,
+
+  /// Forced 16:9, whatever the file reports.
+  ratio16x9,
+
+  /// Forced 4:3.
+  ratio4x3,
+
+  /// The video's own pixel size, centred — smaller videos stay small.
+  original,
 }

@@ -9,7 +9,7 @@ import '../../../core/utils/haptics.dart';
 import '../../../data/models/enums.dart';
 import '../../../state/playback_controller.dart';
 import '../player_page.dart';
-import 'glass.dart';
+import '../../common/glass.dart';
 import 'playback_sheets.dart';
 
 /// The control overlay: a glass top bar, the transport in the middle, the
@@ -56,17 +56,15 @@ class _FullControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return const SafeArea(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: AppTheme.space16),
         child: Column(
           children: [
-            SizedBox(height: 8),
+            SizedBox(height: AppTheme.space8),
             _TopBar(),
             Expanded(child: Center(child: _Transport())),
             _AbBanner(),
             _SeekBar(),
-            SizedBox(height: 10),
-            _TogglePanel(),
-            SizedBox(height: 10),
+            SizedBox(height: AppTheme.space16),
           ],
         ),
       ),
@@ -75,6 +73,8 @@ class _FullControls extends StatelessWidget {
 }
 
 // ------------------------------------------------------------------- top bar
+/// One row: minimise, what is playing right beside it, then the actions pill
+/// with everything else behind its More button.
 class _TopBar extends StatelessWidget {
   const _TopBar();
 
@@ -91,51 +91,54 @@ class _TopBar extends StatelessWidget {
             p.queue.length,
           ),
         );
+    final shadows = _readableOnVideo(theme);
 
     return Row(
       children: [
-        // Chevron down rather than an arrow: this minimises into the mini
-        // player, it does not leave the video behind.
+        // Chevron down rather than a cross: this minimises into the mini
+        // player, it does not stop the video.
         GlassCircleButton(
           icon: Icons.keyboard_arrow_down_rounded,
-          size: 44,
-          iconSize: 26,
+          size: 46,
+          iconSize: 28,
           tooltip: context.s.minimise,
           onTap: () => closePlayer(context, stopPlayback: false),
         ),
-        const SizedBox(width: 10),
-        Flexible(
-          child: GlassPanel(
-            radius: BorderRadius.circular(AppTheme.radiusSheet),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 9),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyLarge,
+        const SizedBox(width: AppTheme.space12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  shadows: shadows,
                 ),
-                if (queueTitle.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      '$queueTitle  ·  $index / $total',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: context.muted,
-                        fontWeight: FontWeight.w500,
+              ),
+              if (queueTitle.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '$queueTitle  ·  $index / $total',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.72,
                       ),
+                      fontWeight: FontWeight.w500,
+                      shadows: shadows,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppTheme.space8),
         const _SleepChip(),
         _TopActions(playback: playback),
       ],
@@ -152,9 +155,19 @@ class _TopActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (pipEnabled, forced, fit) = context
-        .select<PlaybackController, (bool, Orientation?, VideoFit)>(
-          (p) => (p.settings.pipEnabled, p.forcedOrientation, p.videoFit),
+    final (pipEnabled, forced, fit, optionsActive) = context
+        .select<PlaybackController, (bool, Orientation?, VideoFit, bool)>(
+          (p) => (
+            p.settings.pipEnabled,
+            p.forcedOrientation,
+            p.videoFit,
+            // Lit while anything behind More is changed from its default.
+            p.speed != 1.0 ||
+                p.shuffle ||
+                p.loopMode != LoopMode.off ||
+                p.pointA != null ||
+                p.sleepEndsAt != null,
+          ),
         );
 
     return GlassPanel(
@@ -172,12 +185,18 @@ class _TopActions extends StatelessWidget {
             icon: switch (fit) {
               VideoFit.fit => Icons.fit_screen_rounded,
               VideoFit.fill => Icons.crop_free_rounded,
+              VideoFit.stretch => Icons.open_in_full_rounded,
+              VideoFit.ratio16x9 => Icons.crop_16_9_rounded,
+              VideoFit.ratio4x3 => Icons.crop_din_rounded,
+              VideoFit.original => Icons.photo_size_select_actual_outlined,
             },
             tooltip: '${context.s.displayMode} · ${fit.label(context.s)}',
             active: fit != VideoFit.fit,
             onTap: () {
               Haptics.light();
               playback.cycleVideoFit();
+              // Names the new mode, since the icon alone does not say it.
+              playback.flashLabel(playback.videoFit.label(context.s));
             },
           ),
           GlassBarIcon(
@@ -203,6 +222,12 @@ class _TopActions extends StatelessWidget {
               tooltip: context.s.pictureInPicture,
               onTap: playback.enterPip,
             ),
+          GlassBarIcon(
+            icon: Icons.more_vert_rounded,
+            tooltip: context.s.more,
+            active: optionsActive,
+            onTap: () => showPlayerOptionsSheet(context),
+          ),
         ],
       ),
     );
@@ -263,19 +288,19 @@ class _Transport extends StatelessWidget {
         children: [
           GlassCircleButton(
             icon: Icons.skip_previous_rounded,
-            size: 52,
-            iconSize: 26,
+            size: 60,
+            iconSize: 32,
             tooltip: context.s.previous,
             // Always available: with nothing before it, it restarts the video.
             onTap: playback.previous,
           ),
-          const SizedBox(width: 22),
+          const SizedBox(width: AppTheme.space32),
           const _PlayPauseButton(),
-          const SizedBox(width: 22),
+          const SizedBox(width: AppTheme.space32),
           GlassCircleButton(
             icon: Icons.skip_next_rounded,
-            size: 52,
-            iconSize: 26,
+            size: 60,
+            iconSize: 32,
             tooltip: context.s.next,
             onTap: hasNext ? playback.next : null,
           ),
@@ -300,16 +325,15 @@ class _PlayPauseButton extends StatelessWidget {
     if (controller == null) {
       return GlassCircleButton(
         icon: Icons.play_arrow_rounded,
-        size: 68,
+        size: 84,
         tooltip: context.s.play,
-        tint: theme.colorScheme.primary,
         onTap: null,
         child: SizedBox(
-          width: 22,
-          height: 22,
+          width: 26,
+          height: 26,
           child: CircularProgressIndicator(
             strokeWidth: 2.4,
-            color: theme.colorScheme.onPrimary,
+            color: theme.colorScheme.onSurface,
           ),
         ),
       );
@@ -323,19 +347,18 @@ class _PlayPauseButton extends StatelessWidget {
           icon: value.isPlaying
               ? Icons.pause_rounded
               : Icons.play_arrow_rounded,
-          size: 68,
-          iconSize: 34,
+          size: 84,
+          iconSize: 46,
           tooltip: value.isPlaying ? context.s.pause : context.s.play,
-          tint: theme.colorScheme.primary,
-          iconColor: theme.colorScheme.onPrimary,
+          iconColor: theme.colorScheme.onSurface,
           onTap: playback.togglePlay,
           child: buffering
               ? SizedBox(
-                  width: 22,
-                  height: 22,
+                  width: 26,
+                  height: 26,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.4,
-                    color: theme.colorScheme.onPrimary,
+                    color: theme.colorScheme.onSurface,
                   ),
                 )
               : null,
@@ -358,79 +381,88 @@ class _SeekBar extends StatelessWidget {
     final controller = context
         .select<PlaybackController, VideoPlayerController?>((p) => p.player);
 
-    if (controller == null) return const SizedBox(height: 40);
+    if (controller == null) return const SizedBox(height: 52);
 
     final timeStyle = TextStyle(
       color: theme.colorScheme.onSurface,
-      fontSize: 12.5,
+      fontSize: 13,
       fontWeight: FontWeight.w600,
-      shadows: _readableOnVideo(theme),
       fontFeatures: const [FontFeature.tabularFigures()],
     );
 
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: controller,
-      builder: (context, value, _) => ValueListenableBuilder<Duration?>(
-        valueListenable: playback.scrubPosition,
-        builder: (context, scrub, _) {
-          final total = value.duration;
-          final position = scrub ?? value.position;
-          final maxMs = total.inMilliseconds <= 0
-              ? 1.0
-              : total.inMilliseconds.toDouble();
-          final valueMs = position.inMilliseconds
-              .clamp(0, maxMs.round())
-              .toDouble();
-          final dragging = scrub != null;
+    // The glass is built once, outside the builders: only the row inside it
+    // changes as the video plays.
+    return GlassPanel(
+      radius: AppTheme.pillRadius,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: ValueListenableBuilder<VideoPlayerValue>(
+        valueListenable: controller,
+        builder: (context, value, _) => ValueListenableBuilder<Duration?>(
+          valueListenable: playback.scrubPosition,
+          builder: (context, scrub, _) {
+            final total = value.duration;
+            final position = scrub ?? value.position;
+            final maxMs = total.inMilliseconds <= 0
+                ? 1.0
+                : total.inMilliseconds.toDouble();
+            final valueMs = position.inMilliseconds
+                .clamp(0, maxMs.round())
+                .toDouble();
+            final dragging = scrub != null;
 
-          // Elapsed on the left, total on the right, as on every player.
-          return Directionality(
-            textDirection: TextDirection.ltr,
-            child: Row(
-              children: [
-                const SizedBox(width: 10),
-                Text(Fmt.duration(position), style: timeStyle),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: dragging ? 5 : 4,
-                      activeTrackColor: theme.colorScheme.primary,
-                      inactiveTrackColor: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.24),
-                      thumbColor: theme.colorScheme.primary,
-                      overlayColor: theme.colorScheme.primary.withValues(
-                        alpha: 0.14,
+            // Elapsed on the left, time remaining on the right.
+            final remaining = total - position;
+            return Directionality(
+              textDirection: TextDirection.ltr,
+              child: Row(
+                children: [
+                  const SizedBox(width: 6),
+                  Text(Fmt.duration(position), style: timeStyle),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: dragging ? 5 : 4,
+                        activeTrackColor: theme.colorScheme.primary,
+                        inactiveTrackColor: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.24),
+                        thumbColor: theme.colorScheme.primary,
+                        overlayColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.14,
+                        ),
+                        // The thumb grows while it is being dragged.
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: dragging ? 9 : 6,
+                          elevation: 2,
+                          pressedElevation: 3,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 18,
+                        ),
+                        trackShape: const RoundedRectSliderTrackShape(),
                       ),
-                      // The thumb grows while it is being dragged.
-                      thumbShape: RoundSliderThumbShape(
-                        enabledThumbRadius: dragging ? 9 : 6,
-                        elevation: 2,
-                        pressedElevation: 3,
+                      child: Slider(
+                        value: valueMs,
+                        max: maxMs,
+                        onChangeStart: (v) => playback.beginScrub(
+                          Duration(milliseconds: v.round()),
+                        ),
+                        onChanged: (v) => playback.updateScrub(
+                          Duration(milliseconds: v.round()),
+                        ),
+                        onChangeEnd: (_) => playback.endScrub(),
                       ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 18,
-                      ),
-                      trackShape: const RoundedRectSliderTrackShape(),
-                    ),
-                    child: Slider(
-                      value: valueMs,
-                      max: maxMs,
-                      onChangeStart: (v) => playback.beginScrub(
-                        Duration(milliseconds: v.round()),
-                      ),
-                      onChanged: (v) => playback.updateScrub(
-                        Duration(milliseconds: v.round()),
-                      ),
-                      onChangeEnd: (_) => playback.endScrub(),
                     ),
                   ),
-                ),
-                Text(Fmt.duration(total), style: timeStyle),
-                const SizedBox(width: 10),
-              ],
-            ),
-          );
-        },
+                  Text(
+                    '-${Fmt.duration(remaining.isNegative ? Duration.zero : remaining)}',
+                    style: timeStyle,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -491,160 +523,6 @@ class _AbBanner extends StatelessWidget {
               child: Text(
                 context.s.clear,
                 style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------ toggle panel
-/// The six playback toggles in one floating glass panel, each with its label.
-class _TogglePanel extends StatelessWidget {
-  const _TogglePanel();
-
-  @override
-  Widget build(BuildContext context) {
-    final playback = context.read<PlaybackController>();
-    final (speed, shuffle, loopMode, abStarted, sleeping) = context
-        .select<PlaybackController, (double, bool, LoopMode, bool, bool)>(
-          (p) => (
-            p.speed,
-            p.shuffle,
-            p.loopMode,
-            p.pointA != null,
-            p.sleepEndsAt != null,
-          ),
-        );
-    final settings = playback.settings;
-
-    final items = <Widget>[
-      _Toggle(
-        icon: Icons.lock_outline_rounded,
-        label: context.s.lock,
-        onTap: () {
-          Haptics.light();
-          playback.toggleLock();
-        },
-      ),
-      _Toggle(
-        icon: Icons.speed_rounded,
-        label: Fmt.speed(speed),
-        active: speed != 1.0,
-        onTap: () => showSpeedSheet(context),
-      ),
-      if (settings.abRepeatEnabled)
-        _Toggle(
-          icon: Icons.repeat_one_on_rounded,
-          label: context.s.abRepeat,
-          active: abStarted,
-          onTap: () {
-            Haptics.light();
-            playback.markAbPoint();
-          },
-        ),
-      _Toggle(
-        icon: Icons.shuffle_rounded,
-        label: context.s.shuffle,
-        active: shuffle,
-        onTap: () {
-          Haptics.light();
-          playback.toggleShuffle();
-        },
-      ),
-      _Toggle(
-        icon: switch (loopMode) {
-          LoopMode.one => Icons.repeat_one_rounded,
-          _ => Icons.repeat_rounded,
-        },
-        label: switch (loopMode) {
-          LoopMode.off => context.s.repeat,
-          LoopMode.all => context.s.repeatAll,
-          LoopMode.one => context.s.repeatOne,
-        },
-        active: loopMode != LoopMode.off,
-        onTap: () {
-          Haptics.light();
-          playback.cycleLoopMode();
-        },
-      ),
-      if (settings.sleepTimerEnabled)
-        _Toggle(
-          icon: Icons.bedtime_outlined,
-          label: context.s.sleep,
-          active: sleeping,
-          onTap: () => showSleepTimerSheet(context),
-        ),
-    ];
-
-    return GlassPanel(
-      radius: BorderRadius.circular(26),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Row(
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            Expanded(child: items[i]),
-            if (i != items.length - 1) const _ToggleDivider(),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleDivider extends StatelessWidget {
-  const _ToggleDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 26,
-      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-    );
-  }
-}
-
-class _Toggle extends StatelessWidget {
-  const _Toggle({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.active = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = active ? theme.colorScheme.primary : context.muted;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusThumb),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 21, color: color),
-            const SizedBox(height: 5),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: active ? theme.colorScheme.primary : context.muted,
-                fontSize: 10.5,
-                height: 1.1,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w600,
               ),
             ),
           ],

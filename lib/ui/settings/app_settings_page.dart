@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +8,7 @@ import '../../core/theme/accent_palette.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../state/library_controller.dart';
+import '../../data/services/background_image_service.dart';
 import '../../state/settings_controller.dart';
 import 'about_page.dart';
 import 'playback_settings_page.dart';
@@ -97,6 +100,8 @@ class AppSettingsPage extends StatelessWidget {
               ),
             ),
           ),
+          SettingsSection(context.s.backgroundImage),
+          _BackgroundCard(settings: settings),
           SettingsSection(context.s.history),
           SettingsCard(
             children: [
@@ -298,6 +303,109 @@ class AppSettingsPage extends StatelessWidget {
 }
 
 /// One colour in the accent picker.
+/// Background picture: a preview, choose / remove, and how soft it is.
+class _BackgroundCard extends StatelessWidget {
+  const _BackgroundCard({required this.settings});
+
+  final SettingsController settings;
+
+  Future<void> _choose() async {
+    final path = await BackgroundImageService.pick();
+    if (path != null) await settings.setBackgroundImage(path);
+  }
+
+  Future<void> _remove() async {
+    await settings.setBackgroundImage(null);
+    await BackgroundImageService.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final theme = Theme.of(context);
+    final path = settings.backgroundImage;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.backgroundImageBody,
+              style: theme.textTheme.bodySmall?.copyWith(color: context.muted),
+            ),
+            const SizedBox(height: AppTheme.space16),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: AppTheme.thumbRadius,
+                  child: SizedBox(
+                    width: 64,
+                    height: 96,
+                    child: path == null
+                        ? ColoredBox(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.wallpaper_rounded,
+                              color: context.muted,
+                            ),
+                          )
+                        : Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            cacheWidth: 200,
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.space16),
+                Expanded(
+                  child: Wrap(
+                    spacing: AppTheme.space8,
+                    runSpacing: AppTheme.space8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _choose,
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: Text(
+                          path == null ? s.chooseImage : s.changeImage,
+                        ),
+                      ),
+                      if (path != null)
+                        TextButton(
+                          onPressed: _remove,
+                          child: Text(s.removeImage),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (path != null) ...[
+              const SizedBox(height: AppTheme.space12),
+              Row(
+                children: [
+                  Icon(Icons.blur_on_rounded, size: 20, color: context.muted),
+                  const SizedBox(width: AppTheme.space8),
+                  Text(s.backgroundBlur, style: theme.textTheme.bodyMedium),
+                  Expanded(
+                    child: Slider(
+                      value: settings.backgroundBlur,
+                      max: 40,
+                      onChanged: settings.setBackgroundBlur,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AccentSwatch extends StatelessWidget {
   const _AccentSwatch({
     required this.option,

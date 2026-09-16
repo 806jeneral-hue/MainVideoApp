@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../state/playback_controller.dart';
-import 'glass.dart';
+import '../../common/glass.dart';
 
 /// The small floating readout that appears while a gesture is changing
 /// volume, brightness, position or speed.
@@ -52,11 +52,7 @@ class _HudBox extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _icon(state.kind),
-            color: theme.colorScheme.onSurface,
-            size: 26,
-          ),
+          Icon(_icon(state.kind), color: theme.colorScheme.onSurface, size: 26),
           const SizedBox(height: 10),
           Text(
             state.kind == HudKind.seek
@@ -66,23 +62,25 @@ class _HudBox extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 120,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: state.value,
-                minHeight: 4,
-                backgroundColor: theme.colorScheme.onSurface.withValues(
-                  alpha: 0.18,
-                ),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  theme.colorScheme.primary,
+          if (state.kind != HudKind.display) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 120,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: state.value,
+                  minHeight: 4,
+                  backgroundColor: theme.colorScheme.onSurface.withValues(
+                    alpha: 0.18,
+                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -93,5 +91,6 @@ class _HudBox extends StatelessWidget {
     HudKind.brightness => Icons.brightness_6_rounded,
     HudKind.seek => Icons.fast_forward_rounded,
     HudKind.speed => Icons.speed_rounded,
+    HudKind.display => Icons.aspect_ratio_rounded,
   };
 }

@@ -185,7 +185,7 @@ class _PlayerPageState extends State<PlayerPage> {
           // Every control now sits on its own glass panel and takes its
           // colours from the theme, so the area around the video can be the
           // app's own page colour rather than a forced black.
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: Theme.of(context).canvasColor,
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -216,7 +216,7 @@ class _DismissTransition extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
 
     return ColoredBox(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: Theme.of(context).canvasColor,
       child: ValueListenableBuilder<double>(
         valueListenable: playback.dismissDrag,
         // The child is built once and only transformed, so a drag costs a
@@ -304,22 +304,44 @@ class _VideoFrame extends StatelessWidget {
     if (controller == null) return const SizedBox.shrink();
 
     final size = controller.value.size;
+    final width = size.width == 0 ? 16.0 : size.width;
+    final height = size.height == 0 ? 9.0 : size.height;
+
+    Widget ratio(double aspectRatio) => Center(
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: VideoPlayer(controller),
+      ),
+    );
+
     final video = switch (fit) {
       // Whole frame visible; bars where the shapes differ.
-      VideoFit.fit => Center(
-        child: AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: VideoPlayer(controller),
-        ),
-      ),
+      VideoFit.fit => ratio(controller.value.aspectRatio),
       // Covers the screen; whatever does not fit is cropped.
       VideoFit.fill => FittedBox(
         fit: BoxFit.cover,
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
-          width: size.width == 0 ? 16 : size.width,
-          height: size.height == 0 ? 9 : size.height,
+          width: width,
+          height: height,
           child: VideoPlayer(controller),
+        ),
+      ),
+      // Pulled to the screen's shape; nothing cropped.
+      VideoFit.stretch => SizedBox.expand(child: VideoPlayer(controller)),
+      VideoFit.ratio16x9 => ratio(16 / 9),
+      VideoFit.ratio4x3 => ratio(4 / 3),
+      // The file's own pixel size, scaled down only if it would not fit.
+      // Pixels are divided by the screen density so 1 video pixel is 1
+      // physical pixel.
+      VideoFit.original => Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: width / MediaQuery.devicePixelRatioOf(context),
+            height: height / MediaQuery.devicePixelRatioOf(context),
+            child: VideoPlayer(controller),
+          ),
         ),
       ),
     };

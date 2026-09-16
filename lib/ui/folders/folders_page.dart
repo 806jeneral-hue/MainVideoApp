@@ -12,6 +12,7 @@ import '../../data/models/video.dart';
 import '../../data/models/video_folder.dart';
 import '../../state/library_controller.dart';
 import '../common/empty_state.dart';
+import '../common/glass.dart';
 import '../common/bottom_fade.dart';
 import '../common/tab_scroll.dart';
 import '../common/video_thumbnail.dart';
@@ -96,19 +97,19 @@ class FoldersPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(context.s.folders),
         actions: [
-          IconButton(
+          HeaderAction(
             tooltip: isGrid ? context.s.listView : context.s.gridView,
             icon: Icon(
               isGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
             ),
             onPressed: library.toggleViewMode,
           ),
-          IconButton(
+          HeaderAction(
             tooltip: context.s.chooseFoldersToScan,
             icon: const Icon(Icons.rule_folder_outlined),
             onPressed: () => _open(context, const ScanFoldersPage()),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 16),
         ],
       ),
       // This screen's Scaffold now runs the full height of the window, so the
@@ -428,13 +429,8 @@ class _EntryRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: AppTheme.cardRadius,
-          boxShadow: context.cardShadow,
-        ),
+      padding: const EdgeInsets.only(bottom: AppTheme.space12),
+      child: GlassSurface(
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -446,8 +442,8 @@ class _EntryRow extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 46,
-                    height: 46,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
                       color: entry.iconColor.withValues(alpha: 0.14),
                       borderRadius: AppTheme.thumbRadius,
@@ -569,8 +565,11 @@ class _EntryTile extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
+                            color: Colors.black.withValues(alpha: 0.40),
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.22),
+                            ),
                           ),
                           child: Icon(
                             entry.icon,

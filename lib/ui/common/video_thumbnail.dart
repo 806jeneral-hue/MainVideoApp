@@ -17,6 +17,7 @@ class VideoThumbnail extends StatefulWidget {
     this.height = 88,
     this.progress = 0,
     this.showDuration = true,
+    this.showPlayGlyph = false,
     this.borderRadius,
   });
 
@@ -27,6 +28,10 @@ class VideoThumbnail extends StatefulWidget {
   /// 0..1 resume progress; 0 hides the bar.
   final double progress;
   final bool showDuration;
+
+  /// A small floating play button in the middle — for the library cards,
+  /// where the thumbnail is the thing you tap to watch.
+  final bool showPlayGlyph;
   final BorderRadius? borderRadius;
 
   @override
@@ -126,9 +131,10 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
                               ),
                       ),
               ),
+              if (widget.showPlayGlyph) const Center(child: _PlayGlyph()),
               if (widget.showDuration && widget.video.durationMs > 0)
                 Positioned(
-                  left: 7,
+                  right: 7,
                   bottom: 7,
                   child: _DurationBadge(
                     label: Fmt.durationMs(widget.video.durationMs),
@@ -156,7 +162,10 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   }
 }
 
-/// Dark pill with a small play glyph, sitting on the thumbnail.
+/// Duration as a small smoked-glass pill on the thumbnail.
+///
+/// No live blur: a blur per thumbnail would be paid on every scroll frame, and
+/// a translucent dark fill with a light edge reads the same at this size.
 class _DurationBadge extends StatelessWidget {
   const _DurationBadge({required this.label});
 
@@ -165,26 +174,45 @@ class _DurationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 3, 8, 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
+        color: Colors.black.withValues(alpha: 0.46),
         borderRadius: AppTheme.pillRadius,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.play_arrow_rounded, size: 13, color: Colors.white),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        textDirection: TextDirection.ltr,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
+          fontFeatures: [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// Frosted play button floating in the middle of a card thumbnail.
+class _PlayGlyph extends StatelessWidget {
+  const _PlayGlyph();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black.withValues(alpha: 0.30),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+      ),
+      child: const Icon(
+        Icons.play_arrow_rounded,
+        size: 22,
+        color: Colors.white,
       ),
     );
   }

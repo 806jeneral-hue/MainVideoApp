@@ -60,8 +60,8 @@ class VideoSliver extends StatelessWidget {
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            crossAxisSpacing: AppTheme.space12,
+            mainAxisSpacing: AppTheme.space16,
             // Room for the thumbnail plus a two-line title and the meta row.
             childAspectRatio: 0.76,
           ),

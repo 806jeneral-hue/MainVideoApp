@@ -4,6 +4,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/video.dart';
+import '../../common/glass.dart';
 import '../../common/video_thumbnail.dart';
 
 /// One video as a white card floating on the page: thumbnail on the left,
@@ -54,14 +55,10 @@ class VideoListTile extends StatelessWidget {
         AppTheme.pageMargin,
         0,
         AppTheme.pageMargin,
-        10,
+        AppTheme.space12,
       ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: selected ? context.accentWash : theme.colorScheme.surface,
-          borderRadius: AppTheme.cardRadius,
-          boxShadow: context.cardShadow,
-        ),
+      child: GlassSurface(
+        selected: selected,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -87,14 +84,15 @@ class VideoListTile extends StatelessWidget {
                   ],
                   VideoThumbnail(
                     video: video,
-                    width: selectionMode ? 106 : 118,
-                    height: selectionMode ? 70 : 78,
+                    width: selectionMode ? 116 : 136,
+                    height: selectionMode ? 76 : 88,
+                    showPlayGlyph: !selectionMode,
                     progress: progress,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppTheme.space12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 3),
+                      padding: const EdgeInsets.only(top: 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -103,9 +101,12 @@ class VideoListTile extends StatelessWidget {
                             video.displayName,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyLarge,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppTheme.space8),
                           _MetaRow(
                             video: video,
                             muted: muted,

@@ -36,6 +36,15 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
               children: [
                 _SheetTitle(s.more),
                 _OptionRow(
+                  icon: Icons.lock_outline_rounded,
+                  title: s.lock,
+                  value: '',
+                  onTap: () {
+                    Navigator.pop(context);
+                    player.toggleLock();
+                  },
+                ),
+                _OptionRow(
                   icon: Icons.speed_rounded,
                   title: s.playbackSpeed,
                   value: Fmt.speed(player.speed),
@@ -143,13 +152,15 @@ class _OptionRow extends StatelessWidget {
         child: Icon(icon, size: 21, color: color),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(
-        value,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      subtitle: value.isEmpty
+          ? null
+          : Text(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
       trailing: trailing,
     );
   }

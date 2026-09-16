@@ -9,6 +9,7 @@ import '../../data/models/enums.dart';
 import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
 import '../../state/settings_controller.dart';
+import '../common/glass.dart';
 import '../common/empty_state.dart';
 import '../common/bottom_fade.dart';
 import '../common/drag_select.dart';
@@ -113,7 +114,7 @@ class _CollectionPageState extends State<CollectionPage>
               title: Text(title),
               actions: [
                 if (widget.kind == CollectionKind.playlist && playlist != null)
-                  IconButton(
+                  HeaderAction(
                     tooltip: context.s.addVideos,
                     icon: const Icon(Icons.playlist_add_rounded),
                     onPressed: () async {
@@ -133,7 +134,7 @@ class _CollectionPageState extends State<CollectionPage>
                       }
                     },
                   ),
-                IconButton(
+                HeaderAction(
                   tooltip: library.viewMode == ViewMode.list
                       ? context.s.gridView
                       : context.s.listView,
@@ -144,12 +145,12 @@ class _CollectionPageState extends State<CollectionPage>
                   ),
                   onPressed: library.toggleViewMode,
                 ),
-                IconButton(
+                HeaderAction(
                   tooltip: context.s.sort,
                   icon: const Icon(Icons.swap_vert_rounded),
                   onPressed: () => showSortSheet(context, _key),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 16),
               ],
             ),
       bottomNavigationBar: selectionMode

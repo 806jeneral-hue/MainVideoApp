@@ -1423,5 +1423,18 @@ extension ImprovementStrings on Strings {
   String get displayMode => _isArabic ? 'وضع العرض' : 'Display';
   String get displayFit => _isArabic ? 'احتواء' : 'Fit';
   String get displayFill => _isArabic ? 'ملء الشاشة' : 'Fill';
+  String get displayStretch => _isArabic ? 'مطّ' : 'Stretch';
+  String get displayOriginal => _isArabic ? 'الحجم الأصلي' : 'Original size';
   String get resetZoom => _isArabic ? 'إلغاء التكبير' : 'Reset zoom';
+
+  // ---------------------------------------------------------- background
+  String get backgroundImage =>
+      _isArabic ? 'صورة الخلفية' : 'Background picture';
+  String get backgroundImageBody => _isArabic
+      ? 'اختر صورة من جهازك لتظهر خلف التطبيق.'
+      : 'Pick a photo from your device to show behind the app.';
+  String get chooseImage => _isArabic ? 'اختيار صورة' : 'Choose picture';
+  String get changeImage => _isArabic ? 'تغيير' : 'Change';
+  String get removeImage => _isArabic ? 'إزالة' : 'Remove';
+  String get backgroundBlur => _isArabic ? 'درجة التمويه' : 'Blur';
 }

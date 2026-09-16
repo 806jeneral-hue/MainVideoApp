@@ -15,10 +15,10 @@ class AppTheme {
   ///
   /// Everything on screen should prefer `context.accent`, which follows the
   /// accent the user picked in Settings.
-  static const Color accent = Color(0xFF34795C);
+  static const Color accent = Color(0xFF2E7A6C);
 
   /// Light variant, for anything sitting on top of video.
-  static const Color accentOnDark = Color(0xFF8ACBA8);
+  static const Color accentOnDark = Color(0xFF86C9BB);
 
   // -------------------------------------------------------------- surfaces
   static const Color lightBackground = Color(0xFFF3F2ED);
@@ -34,9 +34,9 @@ class AppTheme {
   static const Color darkMuted = Color(0xFF9A9E9B);
 
   // ---------------------------------------------------------------- shape
-  static const double radiusThumb = 14;
-  static const double radiusCard = 20;
-  static const double radiusSheet = 28;
+  static const double radiusThumb = 18;
+  static const double radiusCard = 24;
+  static const double radiusSheet = 30;
   static const double radiusPill = 999;
 
   static BorderRadius get cardRadius => BorderRadius.circular(radiusCard);
@@ -45,6 +45,16 @@ class AppTheme {
 
   /// Page side margin, used by every screen so columns line up.
   static const double pageMargin = 16;
+
+  // Spacing scale. Every gap in the app is one of these, so rhythm stays
+  // consistent from screen to screen.
+  static const double space4 = 4;
+  static const double space8 = 8;
+  static const double space12 = 12;
+  static const double space16 = 16;
+  static const double space20 = 20;
+  static const double space24 = 24;
+  static const double space32 = 32;
 
   /// The soft lift that separates a card from the page. Barely visible on its
   /// own, but it is what makes the layout read as floating panels.
@@ -71,11 +81,11 @@ class AppTheme {
   // both light and dark.
 
   /// How far the frame behind a glass surface is blurred.
-  static const double glassBlur = 20;
+  static const double glassBlur = 24;
 
   static Color glassFill(ThemeData theme) => theme.brightness == Brightness.dark
-      ? theme.colorScheme.surface.withValues(alpha: 0.58)
-      : theme.colorScheme.surface.withValues(alpha: 0.72);
+      ? theme.colorScheme.surface.withValues(alpha: 0.46)
+      : Colors.white.withValues(alpha: 0.52);
 
   /// The hairline that gives a glass surface its edge.
   static Color glassBorder(ThemeData theme) =>
@@ -100,6 +110,53 @@ class AppTheme {
           ),
         ];
 
+  /// Glass for surfaces that sit on the page rather than over video: cards,
+  /// pills, the navigation bar.
+  ///
+  /// It carries the look of glass — a translucent milky fill, a bright hairline
+  /// edge, a soft lift — without a live blur. There is nothing busy behind these
+  /// to blur, and hundreds of blurred cards would cost every scroll frame.
+  static BoxDecoration glassSurface(
+    ThemeData theme, {
+    BorderRadius? radius,
+    bool selected = false,
+    bool floating = false,
+  }) {
+    final isDark = theme.brightness == Brightness.dark;
+    // Over a background picture the glass thins out so the picture reads
+    // through it, the way frosted glass does.
+    final overPicture = theme.scaffoldBackgroundColor.a == 0;
+    final base = isDark
+        ? Colors.white.withValues(alpha: floating ? 0.10 : 0.07)
+        : Colors.white.withValues(
+            alpha: overPicture
+                ? (floating ? 0.62 : 0.48)
+                : (floating ? 0.80 : 0.66),
+          );
+    final fill = selected
+        ? Color.alphaBlend(
+            theme.colorScheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+            base,
+          )
+        : base;
+
+    return BoxDecoration(
+      color: fill,
+      borderRadius: radius ?? cardRadius,
+      border: Border.all(
+        color: selected
+            ? theme.colorScheme.primary.withValues(alpha: isDark ? 0.40 : 0.28)
+            : (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.95)),
+        width: 1,
+      ),
+      boxShadow: floating
+          ? floatingShadow(theme.brightness)
+          : cardShadow(theme.brightness),
+    );
+  }
+
   /// A slightly stronger lift for things that float over content: the
   /// bottom navigation and the mini player.
   static List<BoxShadow> floatingShadow(Brightness brightness) {
@@ -119,8 +176,14 @@ class AppTheme {
   }
 
   /// [accent] is the user's chosen accent; it defaults to the app's own sage.
-  static ThemeData light([AccentOption? accentOption]) => _build(
+  /// [clearPages] makes screens transparent so a background picture set in
+  /// Settings shows through them.
+  static ThemeData light([
+    AccentOption? accentOption,
+    bool clearPages = false,
+  ]) => _build(
     accentOption: accentOption ?? AccentPalette.options.first,
+    clearPages: clearPages,
     brightness: Brightness.light,
     background: lightBackground,
     surface: lightSurface,
@@ -129,8 +192,12 @@ class AppTheme {
     muted: lightMuted,
   );
 
-  static ThemeData dark([AccentOption? accentOption]) => _build(
+  static ThemeData dark([
+    AccentOption? accentOption,
+    bool clearPages = false,
+  ]) => _build(
     accentOption: accentOption ?? AccentPalette.options.first,
+    clearPages: clearPages,
     brightness: Brightness.dark,
     background: darkBackground,
     surface: darkSurface,
@@ -141,6 +208,7 @@ class AppTheme {
 
   static ThemeData _build({
     required AccentOption accentOption,
+    required bool clearPages,
     required Brightness brightness,
     required Color background,
     required Color surface,
@@ -173,12 +241,20 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: background,
+      scaffoldBackgroundColor: clearPages ? Colors.transparent : background,
+      // The real page colour, for screens that must stay solid (the player).
+      canvasColor: background,
     );
 
     // A clear step between screen title, item title and metadata.
     final text = base.textTheme
         .copyWith(
+          headlineLarge: base.textTheme.headlineLarge?.copyWith(
+            fontSize: 34,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -1.0,
+            height: 1.1,
+          ),
           headlineMedium: base.textTheme.headlineMedium?.copyWith(
             fontSize: 28,
             fontWeight: FontWeight.w700,
@@ -222,30 +298,64 @@ class AppTheme {
     return base.copyWith(
       textTheme: text,
       appBarTheme: AppBarTheme(
-        backgroundColor: background,
+        backgroundColor: clearPages ? Colors.transparent : background,
         surfaceTintColor: Colors.transparent,
         foregroundColor: onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        toolbarHeight: 68,
         titleSpacing: pageMargin + 4,
-        titleTextStyle: text.titleLarge?.copyWith(color: onSurface),
+        titleTextStyle: text.headlineMedium?.copyWith(
+          fontSize: 26,
+          color: onSurface,
+        ),
         iconTheme: IconThemeData(color: onSurface, size: 23),
         actionsIconTheme: IconThemeData(color: onSurface, size: 23),
         systemOverlayStyle: brightness == Brightness.dark
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
       ),
+      // Back buttons across the app become the same floating glass circle as
+      // the header actions. Arrow icons mirror themselves in Arabic.
+      actionIconTheme: ActionIconThemeData(
+        backButtonIconBuilder: (context) => Container(
+          width: 42,
+          height: 42,
+          decoration: glassSurface(
+            Theme.of(context),
+            radius: BorderRadius.circular(21),
+            floating: true,
+          ),
+          child: const Icon(Icons.arrow_back_rounded, size: 21),
+        ),
+        closeButtonIconBuilder: (context) => Container(
+          width: 42,
+          height: 42,
+          decoration: glassSurface(
+            Theme.of(context),
+            radius: BorderRadius.circular(21),
+            floating: true,
+          ),
+          child: const Icon(Icons.close_rounded, size: 21),
+        ),
+      ),
       cardTheme: CardThemeData(
-        color: surface,
+        // Same milky glass as the video cards, so settings and info pages are
+        // part of the same family. Flat: a shadow under a translucent card
+        // would show through it as a grey smudge.
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.72),
         surfaceTintColor: Colors.transparent,
-        // Just enough lift to separate a white card from the warm page.
-        elevation: 1.5,
-        shadowColor: brightness == Brightness.dark
-            ? const Color(0x66000000)
-            : const Color(0x1A101828),
+        elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: cardRadius),
+        shape: RoundedRectangleBorder(
+          borderRadius: cardRadius,
+          side: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+          ),
+        ),
       ),
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: cardRadius),
@@ -397,4 +507,15 @@ extension AppColors on BuildContext {
 
   List<BoxShadow> get floatingShadow =>
       AppTheme.floatingShadow(Theme.of(this).brightness);
+
+  BoxDecoration glassSurface({
+    BorderRadius? radius,
+    bool selected = false,
+    bool floating = false,
+  }) => AppTheme.glassSurface(
+    Theme.of(this),
+    radius: radius,
+    selected: selected,
+    floating: floating,
+  );
 }

@@ -37,10 +37,10 @@ class AccentPalette {
   static const List<AccentOption> options = [
     AccentOption(
       key: 'sage',
-      onLight: Color(0xFF34795C),
-      onDark: Color(0xFF8ACBA8),
-      washLight: Color(0xFFDCEBE1),
-      washDark: Color(0xFF23392E),
+      onLight: Color(0xFF2E7A6C),
+      onDark: Color(0xFF86C9BB),
+      washLight: Color(0xFFDAECE7),
+      washDark: Color(0xFF1E3833),
     ),
     AccentOption(
       key: 'terracotta',

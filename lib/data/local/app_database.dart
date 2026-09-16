@@ -88,4 +88,6 @@ class SettingsKeys {
 
   // Personalisation (phase 3 improvements)
   static const accentKey = 'accentKey';
+  static const backgroundImage = 'backgroundImage';
+  static const backgroundBlur = 'backgroundBlur';
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../common/glass.dart';
 
 class NavItem {
   const NavItem({
@@ -11,13 +12,17 @@ class NavItem {
 
   final IconData icon;
   final IconData selectedIcon;
+
+  /// Not drawn — the bar is icons only — but still read out by TalkBack and
+  /// shown on long press.
   final String label;
 }
 
-/// Floating pill-shaped bottom navigation.
+/// Floating glass navigation: icons only, with the current tab sitting in a
+/// soft accent-tinted circle.
 ///
-/// The bar sits above the page rather than sticking to the bottom edge, and
-/// the selected item is marked with a soft wash behind its icon.
+/// The circle is sized from the bar's own height so it always keeps an even
+/// margin above and below instead of pressing against the edges.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
@@ -30,36 +35,37 @@ class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onSelected;
 
+  static const double barHeight = 68;
+  static const double indicatorSize = 52;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppTheme.pageMargin,
-        4,
-        AppTheme.pageMargin,
-        10,
+        AppTheme.space20,
+        AppTheme.space4,
+        AppTheme.space20,
+        AppTheme.space12,
       ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: context.floatingShadow,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          child: Row(
-            children: [
-              for (var i = 0; i < items.length; i++)
-                Expanded(
-                  child: _NavButton(
-                    item: items[i],
-                    selected: i == currentIndex,
-                    onTap: () => onSelected(i),
+      child: GlassSurface(
+        radius: BorderRadius.circular(barHeight / 2),
+        floating: true,
+        child: SizedBox(
+          height: barHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.space8),
+            child: Row(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _NavButton(
+                      item: items[i],
+                      selected: i == currentIndex,
+                      onTap: () => onSelected(i),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -81,49 +87,55 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = selected ? theme.colorScheme.onSurface : context.muted;
+    final isDark = theme.brightness == Brightness.dark;
+    const size = AppBottomNav.indicatorSize;
 
     return Semantics(
       selected: selected,
       button: true,
       label: item.label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+      excludeSemantics: true,
+      child: Tooltip(
+        message: item.label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Center(
+            child: PressScale(
+              scale: 0.9,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                height: 30,
-                constraints: const BoxConstraints(minWidth: 52),
+                width: size,
+                height: size,
                 decoration: BoxDecoration(
-                  color: selected ? context.accentWash : Colors.transparent,
-                  borderRadius: BorderRadius.circular(15),
+                  shape: BoxShape.circle,
+                  color: selected
+                      ? theme.colorScheme.primary.withValues(
+                          alpha: isDark ? 0.24 : 0.14,
+                        )
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: selected
+                        ? theme.colorScheme.primary.withValues(
+                            alpha: isDark ? 0.36 : 0.22,
+                          )
+                        : Colors.transparent,
+                  ),
                 ),
-                child: Icon(
-                  selected ? item.selectedIcon : item.icon,
-                  size: 21,
-                  color: color,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: Icon(
+                    selected ? item.selectedIcon : item.icon,
+                    key: ValueKey(selected),
+                    size: 27,
+                    color: selected ? theme.colorScheme.primary : context.muted,
+                  ),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.1,
-                  color: color,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

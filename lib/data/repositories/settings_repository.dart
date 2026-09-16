@@ -174,6 +174,16 @@ class SettingsRepository {
       _get<String>(SettingsKeys.accentKey, AccentPalette.defaultKey);
   Future<void> setAccentKey(String key) => _set(SettingsKeys.accentKey, key);
 
+  /// A copy of the picked picture inside the app's own storage, or empty.
+  String get backgroundImage => _get<String>(SettingsKeys.backgroundImage, '');
+  Future<void> setBackgroundImage(String path) =>
+      _set(SettingsKeys.backgroundImage, path);
+
+  double get backgroundBlur =>
+      _get<num>(SettingsKeys.backgroundBlur, 14).toDouble();
+  Future<void> setBackgroundBlur(double value) =>
+      _set(SettingsKeys.backgroundBlur, value);
+
   // ----------------------------------------------------------------- language
   /// Null means "follow the device language".
   String? get localeCode {

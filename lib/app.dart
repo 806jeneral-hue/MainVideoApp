@@ -13,6 +13,7 @@ import 'data/repositories/settings_repository.dart';
 import 'state/library_controller.dart';
 import 'state/playback_controller.dart';
 import 'state/settings_controller.dart';
+import 'ui/common/app_background.dart';
 import 'ui/shell/home_shell.dart';
 
 class MainVideoApp extends StatelessWidget {
@@ -77,8 +78,16 @@ class MainVideoApp extends StatelessWidget {
             title: 'Main Video',
             debugShowCheckedModeBanner: false,
             themeMode: settings.themeMode,
-            theme: AppTheme.light(settings.accent),
-            darkTheme: AppTheme.dark(settings.accent),
+            theme: AppTheme.light(
+              settings.accent,
+              settings.backgroundImage != null,
+            ),
+            darkTheme: AppTheme.dark(
+              settings.accent,
+              settings.backgroundImage != null,
+            ),
+            builder: (context, child) =>
+                AppBackground(child: child ?? const SizedBox.shrink()),
             // A null locale follows the device; Arabic also flips the layout
             // to right-to-left, which Flutter handles through Directionality.
             locale: settings.locale,

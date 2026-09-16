@@ -21,7 +21,7 @@ import 'library_controller.dart';
 import 'settings_controller.dart';
 
 /// What the on-screen indicator is currently showing during a gesture.
-enum HudKind { volume, brightness, seek, speed }
+enum HudKind { volume, brightness, seek, speed, display }
 
 /// How far the video is pinched in, and where it has been dragged to.
 class ZoomState {
@@ -294,10 +294,8 @@ class PlaybackController extends ChangeNotifier {
   static const double maxZoom = 5;
 
   void cycleVideoFit() {
-    _videoFit = switch (_videoFit) {
-      VideoFit.fit => VideoFit.fill,
-      VideoFit.fill => VideoFit.fit,
-    };
+    // Each press moves to the next mode, wrapping back to the first.
+    _videoFit = VideoFit.values[(_videoFit.index + 1) % VideoFit.values.length];
     // A zoom made sense for the old framing, not the new one.
     zoom.value = ZoomState.none;
     notifyListeners();
@@ -310,10 +308,7 @@ class PlaybackController extends ChangeNotifier {
       zoom.value = ZoomState.none;
       return;
     }
-    zoom.value = ZoomState(
-      scale: next,
-      offset: zoom.value.offset + panBy,
-    );
+    zoom.value = ZoomState(scale: next, offset: zoom.value.offset + panBy);
   }
 
   void resetZoom() => zoom.value = ZoomState.none;
@@ -820,6 +815,10 @@ class PlaybackController extends ChangeNotifier {
       () => hud.value = null,
     );
   }
+
+  /// A short text readout with no level bar — used to name the display mode
+  /// just switched to.
+  void flashLabel(String label) => _flashHud(HudKind.display, 0, label);
 
   void hideHud() {
     _hudTimer?.cancel();

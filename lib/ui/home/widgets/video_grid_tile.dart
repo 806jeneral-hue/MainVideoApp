@@ -4,6 +4,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/video.dart';
+import '../../common/glass.dart';
 import '../../common/video_thumbnail.dart';
 
 /// Grid version of the video card — same white surface, same rounding, same
@@ -35,12 +36,8 @@ class VideoGridTile extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = context.muted;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: selected ? context.accentWash : theme.colorScheme.surface,
-        borderRadius: AppTheme.cardRadius,
-        boxShadow: context.cardShadow,
-      ),
+    return GlassSurface(
+      selected: selected,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -59,6 +56,7 @@ class VideoGridTile extends StatelessWidget {
                         video: video,
                         width: constraints.maxWidth,
                         height: constraints.maxWidth * 9 / 16,
+                        showPlayGlyph: !selectionMode,
                         progress: progress,
                       ),
                     ),

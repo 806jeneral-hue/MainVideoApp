@@ -1,16 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Main Video icon monochrome</title>
   <desc>
-    Silhouette for Android 13 themed icons: the ribbon with the play opening
-    still cut out of it, flat and untinted. The launcher colours it to match
-    the user's wallpaper, so it carries no colour of its own.
+    Silhouette for Android 13 themed icons: both lobes merged into one shape
+    with the play opening still cut out, flat and untinted. The launcher
+    colours it to match the wallpaper, so it carries no colour of its own.
   </desc>
-  <path fill="#000000" fill-rule="evenodd"
-        transform="translate(256 256) scale(0.92) translate(-256 -256)"
-        d="M 223.0 138.8 L 374.0 226.0 Q 426 256 374.0 286.0
-           L 223.0 373.2 Q 171 403.2 171 343.2
-           L 171 168.8 Q 171 108.8 223.0 138.8 Z
-           M 254.8 202.1 L 324.3 242.2 Q 348.2 256 324.3 269.8
-           L 254.8 309.7 Q 230.9 323.7 230.9 283.9
-           L 230.9 228.1 Q 230.9 188.3 254.8 202.1 Z"/>
+  <defs>
+    <path id="lobe"
+          d="M 223.0 138.8
+             Q 306.5 168.5 374.0 226.0
+             Q 426 256 374.0 286.0
+             Q 306.5 343.5 223.0 373.2
+             Q 171 403.2 171 343.2
+             Q 155 256 171 168.8
+             Q 171 108.8 223.0 138.8 Z"/>
+    <mask id="punchHole">
+      <rect x="0" y="0" width="512" height="512" fill="#FFFFFF"/>
+      <path fill="#000000"
+            d="M 240.8 202.1 L 310.3 242.2 Q 334.2 256 310.3 269.8
+               L 240.8 309.7 Q 216.9 323.7 216.9 283.9
+               L 216.9 228.1 Q 216.9 188.3 240.8 202.1 Z"/>
+    </mask>
+  </defs>
+  <g transform="translate(6 0) translate(256 256) scale(0.76) translate(-256 -256)">
+    <g mask="url(#punchHole)" fill="#000000">
+      <use href="#lobe"/>
+      <use href="#lobe"
+           transform="translate(-6 -3) rotate(-13 256 256) translate(256 256) scale(0.95) translate(-256 -256)"/>
+    </g>
+  </g>
 </svg>
