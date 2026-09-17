@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/services/permission_service.dart';
 import '../../../state/library_controller.dart';
 import '../../common/empty_state.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// Shown while the library is being scanned, or when permission is missing.
 class LibraryStatusView extends StatelessWidget {
@@ -18,7 +19,7 @@ class LibraryStatusView extends StatelessWidget {
 
     if (library.status == LibraryStatus.denied) {
       return EmptyState(
-        icon: Icons.lock_outline_rounded,
+        icon: AppIcons.lock_outline_rounded,
         title: context.s.accessNeeded,
         message:
             'Main Video reads the videos already on this device. Nothing is '

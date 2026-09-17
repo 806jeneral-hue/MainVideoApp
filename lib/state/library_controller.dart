@@ -419,8 +419,11 @@ class LibraryController extends ChangeNotifier {
     await _settings.setViewMode(mode);
   }
 
-  Future<void> toggleViewMode() =>
-      setViewMode(_viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list);
+  Future<void> toggleViewMode() => setViewMode(nextViewMode);
+
+  /// The layout after the current one: list, then compact list, then grid.
+  ViewMode get nextViewMode =>
+      ViewMode.values[(_viewMode.index + 1) % ViewMode.values.length];
 
   void setQuery(String value) {
     if (_query == value) return;

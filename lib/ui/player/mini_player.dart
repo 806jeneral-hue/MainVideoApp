@@ -5,12 +5,18 @@ import 'package:video_player/video_player.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/haptics.dart';
+import '../../data/models/playable.dart';
+import '../../data/models/song.dart';
 import '../../data/models/video.dart';
 import '../../state/playback_controller.dart';
 import '../common/glass.dart';
 import '../common/video_thumbnail.dart';
+import '../music/now_playing_page.dart';
+import '../music/widgets/album_art.dart';
 import '../shell/app_bottom_nav.dart';
 import 'player_page.dart';
+import '../../core/theme/app_icons.dart';
+import '../common/app_icon.dart';
 
 /// The bar that appears at the bottom of the screen while a video is playing
 /// and the full-screen player is not open — above the navigation bar on the
@@ -104,8 +110,10 @@ class _MiniPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    void open() =>
-        openPlayerFullscreen(context, aboveNavigation: aboveNavigation);
+    // A song opens the music player; a video grows back into full screen.
+    void open() => context.read<PlaybackController>().isAudio
+        ? openNowPlaying(context)
+        : openPlayerFullscreen(context, aboveNavigation: aboveNavigation);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -116,8 +124,8 @@ class _MiniPlayerBar extends StatelessWidget {
       ),
       child: _SwipeUpToOpen(
         onOpen: open,
-        child: GlassSurface(
-          floating: true,
+        child: FrostedBar(
+          radius: AppTheme.cardRadius,
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
@@ -148,12 +156,14 @@ class MiniPlayerContent extends StatelessWidget {
     // Only the things that change between videos are watched here. Play state
     // and position come straight from the player below, so the button can
     // never disagree with what the video is actually doing.
-    final (video, queueTitle, controller) = context
-        .select<PlaybackController, (Video?, String, VideoPlayerController?)>(
-          (p) => (p.currentOrNull, p.queueTitle, p.player),
-        );
+    final (item, queueTitle, controller) = context
+        .select<
+          PlaybackController,
+          (Playable?, String, VideoPlayerController?)
+        >((p) => (p.currentOrNull, p.queueTitle, p.player));
 
-    if (video == null) return const SizedBox(height: MiniPlayer.height);
+    if (item == null) return const SizedBox(height: MiniPlayer.height);
+    final radius = BorderRadius.circular(MiniPlayer.thumbnailRadius);
     final theme = Theme.of(context);
 
     return SizedBox(
@@ -178,16 +188,24 @@ class MiniPlayerContent extends StatelessWidget {
                   // new one decodes.
                   Opacity(
                     opacity: showThumbnail ? 1 : 0,
-                    child: VideoThumbnail(
-                      key: ValueKey(video.id),
-                      video: video,
-                      width: MiniPlayer.thumbnailWidth,
-                      height: MiniPlayer.thumbnailHeight,
-                      borderRadius: BorderRadius.circular(
-                        MiniPlayer.thumbnailRadius,
+                    child: switch (item) {
+                      // A song shows its cover, square.
+                      Song song => AlbumArt(
+                        key: ValueKey(song.id),
+                        song: song,
+                        size: MiniPlayer.thumbnailHeight,
+                        radius: radius,
                       ),
-                      showDuration: false,
-                    ),
+                      Video video => VideoThumbnail(
+                        key: ValueKey(video.id),
+                        video: video,
+                        width: MiniPlayer.thumbnailWidth,
+                        height: MiniPlayer.thumbnailHeight,
+                        borderRadius: radius,
+                        showDuration: false,
+                      ),
+                      _ => const SizedBox.shrink(),
+                    },
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -196,7 +214,7 @@ class MiniPlayerContent extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          video.displayName,
+                          item.displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -205,7 +223,12 @@ class MiniPlayerContent extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          queueTitle.isEmpty ? video.folderName : queueTitle,
+                          switch (item) {
+                            Song(:final artist) =>
+                              artist.isEmpty ? context.s.unknownArtist : artist,
+                            _ =>
+                              queueTitle.isEmpty ? item.subtitle : queueTitle,
+                          },
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -221,7 +244,7 @@ class MiniPlayerContent extends StatelessWidget {
                   _PlayPauseButton(controller: controller),
                   const _NextButton(),
                   _MiniButton(
-                    icon: Icons.close_rounded,
+                    icon: AppIcons.cancel_rounded,
                     tooltip: context.s.done,
                     onPressed: context.read<PlaybackController>().stop,
                   ),
@@ -276,7 +299,7 @@ class _MiniButton extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
       color: color,
-      icon: Icon(icon),
+      icon: AppIcon(icon),
     );
   }
 }
@@ -289,7 +312,7 @@ class _PreviousButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _MiniButton(
-      icon: Icons.skip_previous_rounded,
+      icon: AppIcons.skip_previous_rounded,
       tooltip: context.s.previous,
       onPressed: context.read<PlaybackController>().previous,
     );
@@ -323,7 +346,9 @@ class _PlayPauseButton extends StatelessWidget {
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: controller!,
       builder: (context, value, _) => _MiniButton(
-        icon: value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        icon: value.isPlaying
+            ? AppIcons.pause_rounded
+            : AppIcons.play_arrow_rounded,
         tooltip: value.isPlaying ? context.s.pause : context.s.play,
         onPressed: playback.togglePlay,
         color: context.accent,
@@ -340,7 +365,7 @@ class _NextButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasNext = context.select<PlaybackController, bool>((p) => p.hasNext);
     return _MiniButton(
-      icon: Icons.skip_next_rounded,
+      icon: AppIcons.skip_next_rounded,
       tooltip: context.s.next,
       onPressed: hasNext ? context.read<PlaybackController>().next : null,
     );

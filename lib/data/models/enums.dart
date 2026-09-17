@@ -1,5 +1,5 @@
 /// How the home / folder lists are laid out (phase 2).
-enum ViewMode { list, grid }
+enum ViewMode { list, compact, grid }
 
 /// Sort options required by phase 2, plus the custom drag-and-drop order that
 /// each folder and playlist can keep for itself.

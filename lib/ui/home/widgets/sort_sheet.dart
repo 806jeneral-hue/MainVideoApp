@@ -7,6 +7,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/collection_prefs.dart';
 import '../../../data/models/enums.dart';
 import '../../../state/library_controller.dart';
+import '../../common/glass_controls.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// Sort options for one particular list.
 ///
@@ -17,24 +19,35 @@ Future<void> showSortSheet(
   BuildContext context,
   CollectionKey collection, {
   bool allowManual = true,
+
+  /// Adds the list / grid choice at the top, for headers that fold both into
+  /// one button.
+  bool showViewMode = false,
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) =>
-        _SortSheet(collection: collection, allowManual: allowManual),
+    builder: (_) => _SortSheet(
+      collection: collection,
+      allowManual: allowManual,
+      showViewMode: showViewMode,
+    ),
   );
 }
 
 class _SortSheet extends StatelessWidget {
-  const _SortSheet({required this.collection, required this.allowManual});
+  const _SortSheet({
+    required this.collection,
+    required this.allowManual,
+    required this.showViewMode,
+  });
 
   final CollectionKey collection;
   final bool allowManual;
+  final bool showViewMode;
 
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryController>();
-    final theme = Theme.of(context);
     final prefs = library.prefsFor(collection);
 
     final fields = SortField.values
@@ -46,30 +59,55 @@ class _SortSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
-            child: Text(
-              'Sort by',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+          if (showViewMode) ...[
+            GlassSheetTitle(context.s.viewLayout),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.pageMargin,
+                AppTheme.space4,
+                AppTheme.pageMargin,
+                AppTheme.space16,
+              ),
+              child: GlassSegmented<ViewMode>(
+                segments: [
+                  GlassSegment(
+                    value: ViewMode.list,
+                    icon: AppIcons.view_agenda_rounded,
+                    label: context.s.listView,
+                  ),
+                  GlassSegment(
+                    value: ViewMode.compact,
+                    icon: AppIcons.view_list_rounded,
+                    label: context.s.compactView,
+                  ),
+                  GlassSegment(
+                    value: ViewMode.grid,
+                    icon: AppIcons.grid_view_rounded,
+                    label: context.s.gridView,
+                  ),
+                ],
+                selected: library.viewMode,
+                onChanged: library.setViewMode,
               ),
             ),
-          ),
+          ],
+          GlassSheetTitle(context.s.sortBy),
           for (final field in fields)
-            ListTile(
+            GlassTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 22),
               leading: Icon(
                 field == SortField.manual
-                    ? Icons.drag_indicator_rounded
-                    : Icons.sort_rounded,
+                    ? AppIcons.drag_indicator_rounded
+                    : AppIcons.sort_rounded,
                 color: prefs.sortField == field ? context.accent : null,
               ),
               title: Text(field.label(context.s)),
               subtitle: field == SortField.manual
                   ? Text(context.s.sortCustomHint)
                   : null,
+              selected: prefs.sortField == field,
               trailing: prefs.sortField == field
-                  ? Icon(Icons.check_rounded, color: context.accent)
+                  ? Icon(AppIcons.check_rounded, color: context.accent)
                   : null,
               onTap: () {
                 library.setSortFor(collection, field);
@@ -77,43 +115,30 @@ class _SortSheet extends StatelessWidget {
               },
             ),
           if (prefs.sortField.hasDirection) ...[
-            const Divider(height: 24, indent: 22, endIndent: 22),
+            const SizedBox(height: AppTheme.space12),
+            GlassSheetTitle(context.s.order),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.s.order,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
-                    ),
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.pageMargin,
+                AppTheme.space4,
+                AppTheme.pageMargin,
+                AppTheme.space8,
+              ),
+              child: GlassSegmented<bool>(
+                segments: [
+                  GlassSegment(
+                    value: true,
+                    icon: AppIcons.south_rounded,
+                    label: context.s.descending,
                   ),
-                  SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(
-                        value: true,
-                        icon: const Icon(Icons.south, size: 16),
-                        label: Text(context.s.descending),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        icon: const Icon(Icons.north, size: 16),
-                        label: Text(context.s.ascending),
-                      ),
-                    ],
-                    selected: {prefs.descending},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (value) {
-                      if (value.first != prefs.descending) {
-                        library.toggleSortDirectionFor(collection);
-                      }
-                    },
+                  GlassSegment(
+                    value: false,
+                    icon: AppIcons.north_rounded,
+                    label: context.s.ascending,
                   ),
                 ],
+                selected: prefs.descending,
+                onChanged: (_) => library.toggleSortDirectionFor(collection),
               ),
             ),
           ],

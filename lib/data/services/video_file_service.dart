@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../models/video.dart';
+import 'media_index.dart';
 import 'permission_service.dart';
 
 enum FileOpStatus { success, denied, notFound, failed }
@@ -22,29 +23,38 @@ class FileOpResult {
   );
 }
 
-/// Delete and rename on disk (phase 6).
-///
-/// Deleting goes through MediaStore so Android shows its own confirmation
-/// dialog on modern versions. Renaming touches the file directly, which needs
-/// "All files access".
+/// Delete and rename on disk (phase 6). Renaming and moving touch the file
+/// directly, which needs "All files access".
 class VideoFileService {
   const VideoFileService._();
 
-  static Future<FileOpResult> delete(Video video) async {
-    try {
-      final removed = await PhotoManager.editor.deleteWithIds([video.assetId]);
-      if (removed.isNotEmpty) return const FileOpResult(FileOpStatus.success);
+  static Future<FileOpResult> delete(Video video) =>
+      deleteMediaFile(path: video.path, mediaId: video.assetId);
 
-      // MediaStore refused (or the id was stale) — try the file directly.
-      if (!await PermissionService.requestManageStorage()) {
-        return FileOpResult.denied;
+  /// Deletes a video or song from the device without asking every time.
+  ///
+  /// With "All files access" — asked for once, in Settings — the file is simply
+  /// deleted and the media index told, silently. Only without it does the
+  /// delete go through MediaStore, where Android confirms each one.
+  static Future<FileOpResult> deleteMediaFile({
+    required String path,
+    required String mediaId,
+  }) async {
+    try {
+      if (await PermissionService.ensureManageStorageOnce()) {
+        final file = File(path);
+        if (!await file.exists()) {
+          return const FileOpResult(FileOpStatus.notFound);
+        }
+        await file.delete();
+        await MediaIndex.refresh([path]);
+        return const FileOpResult(FileOpStatus.success);
       }
-      final file = File(video.path);
-      if (!await file.exists()) {
-        return const FileOpResult(FileOpStatus.notFound);
-      }
-      await file.delete();
-      return const FileOpResult(FileOpStatus.success);
+
+      final removed = await PhotoManager.editor.deleteWithIds([mediaId]);
+      return removed.isNotEmpty
+          ? const FileOpResult(FileOpStatus.success)
+          : FileOpResult.denied;
     } catch (e) {
       return FileOpResult(FileOpStatus.failed, message: e.toString());
     }

@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
-import 'package:photo_manager/photo_manager.dart';
 
 import '../local/app_database.dart';
 import '../models/trashed_video.dart';
 import '../models/video.dart';
+import '../services/media_index.dart';
 import '../services/permission_service.dart';
 
 /// The recycle bin.
@@ -71,7 +71,8 @@ class RecycleBinRepository {
       );
 
       // The gallery still lists the old location until MediaStore is told.
-      await _forgetInMediaStore(video);
+      // The file moved away from its old path; the gallery stops showing it.
+      await MediaIndex.refresh([video.path]);
       return null;
     } catch (e) {
       return e.toString();
@@ -157,15 +158,5 @@ class RecycleBinRepository {
       if (!await File(candidate).exists()) return candidate;
     }
     return '$stem (${DateTime.now().millisecondsSinceEpoch})$ext';
-  }
-
-  /// Best effort: the file is already gone from its old path, this just stops
-  /// the gallery showing a dead entry.
-  static Future<void> _forgetInMediaStore(Video video) async {
-    try {
-      await PhotoManager.editor.deleteWithIds([video.assetId]);
-    } catch (_) {
-      // MediaStore will drop the stale row on its next scan anyway.
-    }
   }
 }

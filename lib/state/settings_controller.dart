@@ -33,6 +33,7 @@ class SettingsController extends ChangeNotifier {
   LoopMode _loopMode = LoopMode.off;
   bool _keepScreenOn = true;
   int _seekSeconds = 10;
+  int _swipeSeekSeconds = 0;
   bool _hapticsEnabled = true;
 
   // privacy and personalisation
@@ -59,6 +60,7 @@ class SettingsController extends ChangeNotifier {
     _loopMode = _repo.repeatMode;
     _keepScreenOn = _repo.keepScreenOn;
     _seekSeconds = _repo.seekSeconds;
+    _swipeSeekSeconds = _repo.swipeSeekSeconds;
     _hapticsEnabled = _repo.hapticsEnabled;
     _recycleBinEnabled = _repo.recycleBinEnabled;
     _accentKey = _repo.accentKey;
@@ -82,6 +84,10 @@ class SettingsController extends ChangeNotifier {
   LoopMode get loopMode => _loopMode;
   bool get keepScreenOn => _keepScreenOn;
   int get seekSeconds => _seekSeconds;
+
+  /// How far a full-width swipe on the video moves it, in seconds; 0 means
+  /// in proportion to the video's length.
+  int get swipeSeekSeconds => _swipeSeekSeconds;
   bool get hapticsEnabled => _hapticsEnabled;
   bool get recycleBinEnabled => _recycleBinEnabled;
 
@@ -213,6 +219,12 @@ class SettingsController extends ChangeNotifier {
     _seekSeconds = v;
     notifyListeners();
     await _repo.setSeekSeconds(v);
+  }
+
+  Future<void> setSwipeSeekSeconds(int v) async {
+    _swipeSeekSeconds = v;
+    notifyListeners();
+    await _repo.setSwipeSeekSeconds(v);
   }
 
   Future<void> setLocaleCode(String? code) async {

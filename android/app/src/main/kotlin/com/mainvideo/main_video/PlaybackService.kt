@@ -9,6 +9,13 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
+import android.media.ThumbnailUtils
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -16,15 +23,16 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
+import android.widget.RemoteViews
 
 /**
  * Keeps audio playing when the screen is off or the app is in the background,
  * and publishes it to the system as a media session.
  *
- * The session is what gives the full media card in the notification shade and
- * on the lock screen: the video's thumbnail, a live seek bar, and large
- * previous / play-pause / next buttons, plus favourite and close. It also lets
- * headset and Bluetooth buttons control playback.
+ * The session drives the media controls in quick settings and on the lock
+ * screen -- thumbnail, live seek bar, previous / play-pause / next, favourite
+ * and close -- and lets headset and Bluetooth buttons control playback. The
+ * notification itself is the app's own card, styled like its mini player.
  *
  * The service does not own the player. Playback lives in Dart; this shows what
  * Dart reports and forwards every button press back to it.
@@ -83,6 +91,8 @@ class PlaybackService : Service() {
     private lateinit var session: MediaSession
     private var nowPlaying = NowPlaying()
     private var artwork: Bitmap? = null
+    private var coverSmall: Bitmap? = null
+    private var coverLarge: Bitmap? = null
     private var metadataKey: String? = null
     private var inForeground = false
 
@@ -177,6 +187,10 @@ class PlaybackService : Service() {
             } else {
                 BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size)
             }
+            // Rounded once per picture, at the two sizes the card shows.
+            val density = resources.displayMetrics.density
+            coverSmall = artwork?.let { rounded(it, (44 * density).toInt(), 12 * density) }
+            coverLarge = artwork?.let { rounded(it, (72 * density).toInt(), 16 * density) }
             metadataKey = null
         }
         publishMetadata()
@@ -321,38 +335,78 @@ class PlaybackService : Service() {
             .setShowWhen(false)
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            // The app's accent where the system lets an app colour its card;
-            // newer Android versions take the colours from the thumbnail.
             .setColor(nowPlaying.color)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) builder.setColorized(true)
+            // The app's own card, styled like its mini player, in place of the
+            // standard media template. The session still drives the lock screen,
+            // headset buttons and the media controls in quick settings.
+            .setCustomContentView(playerCard(expanded = false))
+            .setCustomBigContentView(playerCard(expanded = true))
 
-        // Newer Android versions build the buttons from the session; these
-        // are what older versions show.
-        builder.addAction(action(R.drawable.ic_notif_previous, "Previous", ACTION_PREVIOUS))
-        builder.addAction(
-            action(
-                if (nowPlaying.playing) R.drawable.ic_notif_pause
-                else R.drawable.ic_notif_play,
-                if (nowPlaying.playing) "Pause" else "Play",
-                ACTION_TOGGLE
-            )
-        )
-        builder.addAction(action(R.drawable.ic_notif_next, "Next", ACTION_NEXT))
-        builder.addAction(
-            action(
-                if (nowPlaying.favorite) R.drawable.ic_notif_favorite
-                else R.drawable.ic_notif_favorite_border,
-                "Favorite",
-                ACTION_FAVORITE
-            )
-        )
-        builder.addAction(action(R.drawable.ic_notif_close, "Close", ACTION_CLOSE))
-
-        builder.style = Notification.MediaStyle()
+        builder.style = Notification.DecoratedMediaCustomViewStyle()
             .setMediaSession(session.sessionToken)
-            .setShowActionsInCompactView(0, 1, 2)
 
         return builder.build()
+    }
+
+    /** Fills one of the two card layouts with what is playing. */
+    private fun playerCard(expanded: Boolean): RemoteViews {
+        val views = RemoteViews(
+            packageName,
+            if (expanded) R.layout.notification_player_expanded
+            else R.layout.notification_player
+        )
+
+        views.setTextViewText(R.id.title, nowPlaying.title.ifEmpty { "Main Video" })
+        views.setTextViewText(R.id.subtitle, nowPlaying.subtitle)
+
+        val cover = if (expanded) coverLarge else coverSmall
+        if (cover != null) {
+            views.setImageViewBitmap(R.id.cover, cover)
+        } else {
+            views.setImageViewResource(R.id.cover, R.drawable.notif_cover_placeholder)
+        }
+
+        // The play button is the app's accent, with a white glyph on it.
+        views.setImageViewResource(
+            R.id.toggle_icon,
+            if (nowPlaying.playing) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
+        )
+        views.setInt(R.id.toggle_background, "setColorFilter", nowPlaying.color)
+        views.setInt(R.id.toggle_icon, "setColorFilter", Color.WHITE)
+
+        views.setOnClickPendingIntent(R.id.previous, serviceIntent(ACTION_PREVIOUS))
+        views.setOnClickPendingIntent(R.id.toggle, serviceIntent(ACTION_TOGGLE))
+        views.setOnClickPendingIntent(R.id.next, serviceIntent(ACTION_NEXT))
+
+        if (expanded) {
+            views.setImageViewResource(
+                R.id.favorite_icon,
+                if (nowPlaying.favorite) R.drawable.ic_notif_favorite
+                else R.drawable.ic_notif_favorite_border
+            )
+            if (nowPlaying.favorite) {
+                views.setInt(R.id.favorite_icon, "setColorFilter", nowPlaying.color)
+            }
+            views.setOnClickPendingIntent(R.id.favorite, serviceIntent(ACTION_FAVORITE))
+            views.setOnClickPendingIntent(R.id.close, serviceIntent(ACTION_CLOSE))
+        }
+        return views
+    }
+
+    /** [source] cropped to a square of [size] pixels with rounded corners. */
+    private fun rounded(source: Bitmap, size: Int, radius: Float): Bitmap {
+        val square = ThumbnailUtils.extractThumbnail(source, size, size)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = BitmapShader(square, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        }
+        Canvas(output).drawRoundRect(
+            RectF(0f, 0f, size.toFloat(), size.toFloat()),
+            radius,
+            radius,
+            paint
+        )
+        return output
     }
 
     private fun serviceIntent(intentAction: String): PendingIntent {
@@ -364,8 +418,4 @@ class PlaybackService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
-
-    @Suppress("DEPRECATION")
-    private fun action(icon: Int, label: String, intentAction: String): Notification.Action =
-        Notification.Action(icon, label, serviceIntent(intentAction))
 }

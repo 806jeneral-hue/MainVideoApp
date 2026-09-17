@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../common/app_icon.dart';
 
 /// Small section label above a group of settings.
 class SettingsSection extends StatelessWidget {
@@ -93,8 +95,8 @@ class SettingsTile extends StatelessWidget {
           trailing ??
           (onTap == null
               ? null
-              : Icon(
-                  Icons.chevron_right_rounded,
+              : AppIcon(
+                  AppIcons.chevron_right_rounded,
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 )),
       onTap: onTap,

@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/playlist_style.dart';
 import '../../data/models/playlist.dart';
 import '../../state/library_controller.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Gives a playlist its own colour and icon, so it is recognisable at a glance
 /// in the Folders screen.
@@ -66,7 +67,7 @@ class _PlaylistStyleSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            const SizedBox(height: AppTheme.space8),
             _Label(context.s.colorLabel),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -116,7 +117,7 @@ class _PlaylistStyleSheet extends StatelessWidget {
                   clearColor: true,
                   clearIcon: true,
                 ),
-                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                icon: const Icon(AppIcons.restart_alt_rounded, size: 18),
                 label: Text(context.s.resetToDefault),
               ),
             ),
@@ -179,7 +180,7 @@ class _ColorDot extends StatelessWidget {
               : null,
         ),
         child: selected
-            ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+            ? const Icon(AppIcons.check_rounded, color: Colors.white, size: 20)
             : null,
       ),
     );

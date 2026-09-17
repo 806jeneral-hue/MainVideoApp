@@ -129,6 +129,7 @@ class VideoSliver extends StatelessWidget {
       id: video.id,
       child: VideoListTile(
         video: video,
+        compact: viewMode == ViewMode.compact,
         progress: progressOf(video),
         isFavorite: isFavorite(video),
         isPinned: isPinned?.call(video) ?? false,

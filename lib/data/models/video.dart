@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'playable.dart';
+
 /// A single video file discovered on the device.
 ///
 /// [id] is the absolute file path: it stays stable across rescans, which is
 /// what favourites, history and playlists are keyed by. [assetId] is the
 /// MediaStore id and is only used to pull a thumbnail out of photo_manager.
-class Video {
+class Video implements Playable {
   const Video({
     required this.id,
     required this.assetId,
@@ -18,9 +20,11 @@ class Video {
     required this.height,
   });
 
+  @override
   final String id;
   final String assetId;
   final String title;
+  @override
   final int durationMs;
   final int sizeBytes;
   final DateTime dateAdded;
@@ -28,7 +32,14 @@ class Video {
   final int width;
   final int height;
 
+  @override
   String get path => id;
+
+  @override
+  String get subtitle => folderName;
+
+  @override
+  bool get isAudio => false;
 
   Duration get duration => Duration(milliseconds: durationMs);
 
@@ -57,6 +68,7 @@ class Video {
   String get resolution => (width > 0 && height > 0) ? '$width x $height' : '—';
 
   /// Name without the extension, for a cleaner list.
+  @override
   String get displayName {
     final i = title.lastIndexOf('.');
     return i > 0 ? title.substring(0, i) : title;

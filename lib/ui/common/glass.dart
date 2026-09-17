@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'app_icon.dart';
 
 /// A translucent panel that floats over the video.
 ///
@@ -95,7 +96,7 @@ class GlassCircleButton extends StatelessWidget {
     final enabled = onTap != null;
     final content =
         child ??
-        Icon(
+        AppIcon(
           icon,
           size: iconSize,
           color: enabled
@@ -275,7 +276,7 @@ class GlassIconButton extends StatelessWidget {
                     opacity: animation,
                     child: ScaleTransition(scale: animation, child: child),
                   ),
-                  child: Icon(
+                  child: AppIcon(
                     icon,
                     key: ValueKey(icon),
                     size: iconSize,
@@ -337,6 +338,40 @@ class HeaderAction extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A bottom bar of see-through glass: the list scrolling behind it shows
+/// through, blurred. Used for the navigation bar and the mini player so the
+/// two read as one piece.
+class FrostedBar extends StatelessWidget {
+  const FrostedBar({super.key, required this.radius, required this.child});
+
+  final BorderRadius radius;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: AppTheme.floatingShadow(theme.brightness),
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: AppTheme.frostedBlur,
+            sigmaY: AppTheme.frostedBlur,
+          ),
+          child: DecoratedBox(
+            decoration: AppTheme.frostedBar(theme, radius),
+            child: child,
           ),
         ),
       ),

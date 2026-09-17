@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
+import 'app_icons.dart';
 
 /// The icons and colours a playlist can be given so it is recognisable at a
 /// glance in the Folders screen.
@@ -11,18 +12,18 @@ class PlaylistStyle {
   const PlaylistStyle._();
 
   static const Map<String, IconData> icons = {
-    'playlist': Icons.queue_music_rounded,
-    'star': Icons.star_rounded,
-    'movie': Icons.movie_creation_rounded,
-    'camera': Icons.videocam_rounded,
-    'music': Icons.music_note_rounded,
-    'school': Icons.school_rounded,
-    'work': Icons.work_rounded,
-    'sports': Icons.sports_soccer_rounded,
-    'travel': Icons.flight_rounded,
-    'family': Icons.family_restroom_rounded,
-    'game': Icons.sports_esports_rounded,
-    'bookmark': Icons.bookmark_rounded,
+    'playlist': AppIcons.queue_music_rounded,
+    'star': AppIcons.star_rounded,
+    'movie': AppIcons.movie_creation_rounded,
+    'camera': AppIcons.videocam_rounded,
+    'music': AppIcons.music_note_rounded,
+    'school': AppIcons.school_rounded,
+    'work': AppIcons.work_rounded,
+    'sports': AppIcons.sports_soccer_rounded,
+    'travel': AppIcons.flight_rounded,
+    'family': AppIcons.family_restroom_rounded,
+    'game': AppIcons.sports_esports_rounded,
+    'bookmark': AppIcons.bookmark_rounded,
   };
 
   /// Warm, calm palette in keeping with the app's visual direction.
@@ -38,7 +39,7 @@ class PlaylistStyle {
   ];
 
   static IconData iconFor(String? key) =>
-      icons[key] ?? Icons.queue_music_rounded;
+      icons[key] ?? AppIcons.queue_music_rounded;
 
   static Color colorFor(int? value, {Color fallback = AppTheme.accent}) =>
       value == null ? fallback : Color(value);

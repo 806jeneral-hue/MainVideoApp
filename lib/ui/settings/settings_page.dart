@@ -6,18 +6,23 @@ import '../../core/theme/app_theme.dart';
 import '../../state/library_controller.dart';
 import '../../state/settings_controller.dart';
 import '../common/bottom_fade.dart';
-import '../common/tab_scroll.dart';
-import '../folders/collection_page.dart';
-import '../settings/about_page.dart';
-import '../settings/app_settings_page.dart';
-import '../settings/playback_settings_page.dart';
-import '../settings/scan_folders_page.dart';
-import '../settings/widgets/settings_tiles.dart';
+import 'about_page.dart';
+import 'app_settings_page.dart';
+import 'playback_settings_page.dart';
+import 'scan_folders_page.dart';
+import 'widgets/settings_tiles.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
-/// The fourth tab: a short hub of everything that is not Home, Folders or
-/// Favorites.
-class MorePage extends StatelessWidget {
-  const MorePage({super.key});
+/// The settings hub, opened from the gear in the header of every main tab:
+/// the library summary, the scan and rescan controls, and the way into
+/// playback settings, app settings and About.
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  static Future<void> open(BuildContext context) => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +30,9 @@ class MorePage extends StatelessWidget {
     final settings = context.watch<SettingsController>();
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.s.navMore)),
+      appBar: AppBar(title: Text(context.s.settings)),
       body: BottomFade(
         child: ListView(
-          controller: TabScroll.maybeOf(context),
           padding: EdgeInsets.fromLTRB(14, 6, 14, listBottomInset(context)),
           children: [
             _LibrarySummary(
@@ -40,17 +44,7 @@ class MorePage extends StatelessWidget {
             SettingsCard(
               children: [
                 SettingsTile(
-                  icon: Icons.favorite_border_rounded,
-                  title: context.s.favorites,
-                  subtitle: context.s.videoCount(library.favoriteVideos.length),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CollectionPage.favorites(),
-                    ),
-                  ),
-                ),
-                SettingsTile(
-                  icon: Icons.rule_folder_outlined,
+                  icon: AppIcons.rule_folder_outlined,
                   title: context.s.foldersToScan,
                   subtitle: library.scanFolders.isEmpty
                       ? context.s.all
@@ -63,14 +57,16 @@ class MorePage extends StatelessWidget {
                   ),
                 ),
                 SettingsTile(
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refresh_rounded,
                   title: context.s.rescanDevice,
                   subtitle: context.s.rescanDeviceBody,
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     final message = context.s.libraryRescanned;
                     await library.refresh();
-                    messenger.showSnackBar(SnackBar(content: Text(message)));
+                    messenger.showSnackBar(
+                      glassSnackBar(content: Text(message)),
+                    );
                   },
                 ),
               ],
@@ -79,7 +75,7 @@ class MorePage extends StatelessWidget {
             SettingsCard(
               children: [
                 SettingsTile(
-                  icon: Icons.play_circle_outline_rounded,
+                  icon: AppIcons.play_circle_outline_rounded,
                   title: context.s.playbackSettings,
                   subtitle: context.s.playbackSettingsBody,
                   onTap: () => Navigator.of(context).push(
@@ -89,7 +85,7 @@ class MorePage extends StatelessWidget {
                   ),
                 ),
                 SettingsTile(
-                  icon: Icons.tune_rounded,
+                  icon: AppIcons.tune_rounded,
                   title: context.s.appSettings,
                   subtitle: context.s.appearance,
                   onTap: () => Navigator.of(context).push(
@@ -97,7 +93,7 @@ class MorePage extends StatelessWidget {
                   ),
                 ),
                 SettingsSwitch(
-                  icon: Icons.dark_mode_outlined,
+                  icon: AppIcons.dark_mode_outlined,
                   title: context.s.darkMode,
                   value: settings.isDark,
                   onChanged: settings.toggleDarkMode,
@@ -108,7 +104,7 @@ class MorePage extends StatelessWidget {
             SettingsCard(
               children: [
                 SettingsTile(
-                  icon: Icons.info_outline_rounded,
+                  icon: AppIcons.info_outline_rounded,
                   title: context.s.aboutApp,
                   subtitle: context.s.version(AboutPage.version),
                   onTap: () => Navigator.of(

@@ -7,6 +7,9 @@ import '../../core/utils/formatters.dart';
 import '../../data/models/trashed_video.dart';
 import '../../state/library_controller.dart';
 import '../common/empty_state.dart';
+import '../common/glass_dialog.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// What is waiting in the recycle bin, with a way to put it back or erase it.
 class RecycleBinPage extends StatelessWidget {
@@ -37,7 +40,7 @@ class RecycleBinPage extends StatelessWidget {
       ),
       body: items.isEmpty
           ? EmptyState(
-              icon: Icons.delete_outline_rounded,
+              icon: AppIcons.delete_outline_rounded,
               title: context.s.recycleBinEmpty,
               message: context.s.recycleBinEmptyBody,
             )
@@ -57,7 +60,7 @@ class RecycleBinPage extends StatelessWidget {
     final s = context.s;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => GlassDialog(
         title: Text(s.emptyBin),
         content: Text(s.emptyBinConfirm),
         actions: [
@@ -102,7 +105,7 @@ class _BinTile extends StatelessWidget {
                   color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: AppTheme.thumbRadius,
                 ),
-                child: Icon(Icons.movie_outlined, color: context.muted),
+                child: Icon(AppIcons.movie_outlined, color: context.muted),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -131,13 +134,13 @@ class _BinTile extends StatelessWidget {
               ),
               IconButton(
                 tooltip: s.restore,
-                icon: const Icon(Icons.restore_rounded),
+                icon: const Icon(AppIcons.restore_rounded),
                 color: context.accent,
                 onPressed: () => _restore(context),
               ),
               IconButton(
                 tooltip: s.deleteForever,
-                icon: const Icon(Icons.delete_forever_rounded),
+                icon: const Icon(AppIcons.delete_forever_rounded),
                 color: Colors.redAccent,
                 onPressed: () => library.deleteFromBinForever(item),
               ),
@@ -152,6 +155,6 @@ class _BinTile extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final s = context.s;
     final error = await library.restoreFromBin(item);
-    messenger.showSnackBar(SnackBar(content: Text(error ?? s.restored)));
+    messenger.showSnackBar(glassSnackBar(content: Text(error ?? s.restored)));
   }
 }

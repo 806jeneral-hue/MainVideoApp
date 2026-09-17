@@ -6,6 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../data/models/video.dart';
 import '../../common/glass.dart';
 import '../../common/video_thumbnail.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// Grid version of the video card — same white surface, same rounding, same
 /// information as the list tile, just stacked instead of side by side.
@@ -66,8 +67,8 @@ class VideoGridTile extends StatelessWidget {
                         top: 7,
                         child: _Badge(
                           icon: isPinned
-                              ? Icons.push_pin_rounded
-                              : Icons.favorite_rounded,
+                              ? AppIcons.push_pin_rounded
+                              : AppIcons.favorite_rounded,
                         ),
                       ),
                     if (selectionMode)
@@ -76,8 +77,8 @@ class VideoGridTile extends StatelessWidget {
                         top: 7,
                         child: _Badge(
                           icon: selected
-                              ? Icons.check_circle_rounded
-                              : Icons.circle_outlined,
+                              ? AppIcons.check_circle_rounded
+                              : AppIcons.circle_outlined,
                           color: selected
                               ? AppTheme.accentOnDark
                               : Colors.white,
@@ -109,7 +110,7 @@ class VideoGridTile extends StatelessWidget {
                               Row(
                                 children: [
                                   Icon(
-                                    Icons.storage_rounded,
+                                    AppIcons.storage_rounded,
                                     size: 12,
                                     color: muted,
                                   ),
@@ -139,7 +140,7 @@ class VideoGridTile extends StatelessWidget {
                             padding: EdgeInsets.zero,
                             iconSize: 18,
                             color: muted,
-                            icon: const Icon(Icons.more_vert),
+                            icon: const Icon(AppIcons.more_vert),
                             tooltip: context.s.more,
                           ),
                         ),

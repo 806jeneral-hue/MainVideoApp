@@ -6,6 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../data/models/video.dart';
 import '../../common/glass.dart';
 import '../../common/video_thumbnail.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// One video as a white card floating on the page: thumbnail on the left,
 /// title and metadata beside it, overflow menu on the right.
@@ -26,6 +27,7 @@ class VideoListTile extends StatelessWidget {
     this.selectionMode = false,
     this.selected = false,
     this.dragHandleIndex,
+    this.compact = false,
   });
 
   final Video video;
@@ -44,6 +46,9 @@ class VideoListTile extends StatelessWidget {
   /// Set when the list is in custom order, to show the drag handle.
   final int? dragHandleIndex;
 
+  /// Smaller thumbnail and text, so more videos fit on screen.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -51,32 +56,38 @@ class VideoListTile extends StatelessWidget {
     final accent = context.accent;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppTheme.pageMargin,
         0,
         AppTheme.pageMargin,
-        AppTheme.space12,
+        compact ? AppTheme.space8 : AppTheme.space12,
       ),
       child: GlassSurface(
         selected: selected,
+        radius: compact ? BorderRadius.circular(20) : null,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
             onLongPress: onMore,
-            borderRadius: AppTheme.cardRadius,
+            borderRadius: compact
+                ? BorderRadius.circular(20)
+                : AppTheme.cardRadius,
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(compact ? 8 : 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (selectionMode) ...[
                     Padding(
-                      padding: const EdgeInsets.only(top: 22, right: 6),
+                      padding: EdgeInsets.only(
+                        top: compact ? 16 : 22,
+                        right: 6,
+                      ),
                       child: Icon(
                         selected
-                            ? Icons.check_circle_rounded
-                            : Icons.circle_outlined,
+                            ? AppIcons.check_circle_rounded
+                            : AppIcons.circle_outlined,
                         color: selected ? accent : muted,
                         size: 22,
                       ),
@@ -84,15 +95,16 @@ class VideoListTile extends StatelessWidget {
                   ],
                   VideoThumbnail(
                     video: video,
-                    width: selectionMode ? 116 : 136,
-                    height: selectionMode ? 76 : 88,
-                    showPlayGlyph: !selectionMode,
+                    width: compact ? 100 : (selectionMode ? 116 : 136),
+                    height: compact ? 58 : (selectionMode ? 76 : 88),
+                    borderRadius: compact ? BorderRadius.circular(13) : null,
+                    showPlayGlyph: !selectionMode && !compact,
                     progress: progress,
                   ),
                   const SizedBox(width: AppTheme.space12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 6),
+                      padding: EdgeInsets.only(top: compact ? 2 : 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -101,12 +113,16 @@ class VideoListTile extends StatelessWidget {
                             video.displayName,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                            ),
+                            style:
+                                (compact
+                                        ? theme.textTheme.bodyMedium
+                                        : theme.textTheme.bodyLarge)
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.3,
+                                    ),
                           ),
-                          const SizedBox(height: AppTheme.space8),
+                          SizedBox(height: compact ? 4 : AppTheme.space8),
                           _MetaRow(
                             video: video,
                             muted: muted,
@@ -124,7 +140,7 @@ class VideoListTile extends StatelessWidget {
                       index: dragHandleIndex!,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(6, 10, 4, 10),
-                        child: Icon(Icons.drag_handle_rounded, color: muted),
+                        child: Icon(AppIcons.drag_handle_rounded, color: muted),
                       ),
                     )
                   else if (!selectionMode)
@@ -136,7 +152,7 @@ class VideoListTile extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         iconSize: 20,
                         color: muted,
-                        icon: const Icon(Icons.more_vert),
+                        icon: const Icon(AppIcons.more_vert),
                         tooltip: context.s.more,
                       ),
                     )
@@ -179,11 +195,11 @@ class _MetaRow extends StatelessWidget {
     return Row(
       children: [
         if (isPinned) ...[
-          Icon(Icons.push_pin_rounded, size: 13, color: accent),
+          Icon(AppIcons.push_pin_rounded, size: 13, color: accent),
           const SizedBox(width: 5),
         ],
         if (isFavorite) ...[
-          Icon(Icons.favorite_rounded, size: 13, color: accent),
+          Icon(AppIcons.favorite_rounded, size: 13, color: accent),
           const SizedBox(width: 5),
         ],
         if (subtitleOverride != null)
@@ -196,11 +212,11 @@ class _MetaRow extends StatelessWidget {
             ),
           )
         else ...[
-          Icon(Icons.storage_rounded, size: 13, color: muted),
+          Icon(AppIcons.storage_rounded, size: 13, color: muted),
           const SizedBox(width: 4),
           Text(Fmt.fileSize(video.sizeBytes), style: style),
           Text('  ·  ', style: style),
-          Icon(Icons.folder_outlined, size: 13, color: muted),
+          Icon(AppIcons.folder_outlined, size: 13, color: muted),
           const SizedBox(width: 4),
           Expanded(
             child: Text(

@@ -31,9 +31,13 @@ class SettingsRepository {
       _set(SettingsKeys.themeMode, mode.name);
 
   // --------------------------------------------------------------------- home
-  ViewMode get viewMode => _get<String>(SettingsKeys.viewMode, 'list') == 'grid'
-      ? ViewMode.grid
-      : ViewMode.list;
+  ViewMode get viewMode {
+    final name = _get<String>(SettingsKeys.viewMode, 'list');
+    return ViewMode.values.firstWhere(
+      (mode) => mode.name == name,
+      orElse: () => ViewMode.list,
+    );
+  }
 
   Future<void> setViewMode(ViewMode mode) =>
       _set(SettingsKeys.viewMode, mode.name);
@@ -148,6 +152,12 @@ class SettingsRepository {
   /// How far a double-tap or a skip button moves, in seconds.
   int get seekSeconds => _get<int>(SettingsKeys.seekSeconds, 10);
   Future<void> setSeekSeconds(int v) => _set(SettingsKeys.seekSeconds, v);
+
+  /// How far a full-width swipe moves the video, in seconds; 0 scales it to
+  /// the length of the video.
+  int get swipeSeekSeconds => _get<int>(SettingsKeys.swipeSeekSeconds, 0);
+  Future<void> setSwipeSeekSeconds(int v) =>
+      _set(SettingsKeys.swipeSeekSeconds, v);
 
   bool get hapticsEnabled => _get<bool>(SettingsKeys.hapticsEnabled, true);
   Future<void> setHapticsEnabled(bool v) =>

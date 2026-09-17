@@ -4,17 +4,19 @@ import 'package:provider/provider.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../data/services/pip_service.dart';
 import '../../state/library_controller.dart';
+import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
 import '../favorites/favorites_page.dart';
 import '../folders/folders_page.dart';
 import '../home/home_page.dart';
-import '../more/more_page.dart';
+import '../music/music_page.dart';
 import '../common/tab_scroll.dart';
 import '../player/mini_player.dart';
 import 'app_bottom_nav.dart';
+import 'nav_glyphs.dart';
 
-/// Bottom navigation required by phase 2: Home / Folders / Favorites / More,
-/// with the mini player docked above it.
+/// Bottom navigation: Home / Folders / Favorites / Music, with the mini player
+/// docked above it. Settings open from the gear in each tab's header.
 ///
 /// This is also the app's long-lived host for things that outlive any one
 /// screen: the lifecycle observer that pauses playback, the PiP channel, and
@@ -45,7 +47,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     HomePage(),
     FoldersPage(),
     FavoritesPage(),
-    MorePage(),
+    MusicPage(),
   ];
 
   @override
@@ -60,8 +62,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         context.read<PlaybackController>().setPipState(inPip);
     PipService.onUserLeaveHint = () {
       final playback = context.read<PlaybackController>();
+      // Picture-in-picture is for a video being watched, never for music.
       if (playback.isFullscreen &&
           playback.isPlaying &&
+          !playback.isAudio &&
           playback.settings.pipEnabled) {
         playback.enterPip();
       }
@@ -105,6 +109,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       // Picks up anything recorded or downloaded while the app was away,
       // without re-reading the whole device.
       context.read<LibraryController>().syncNewVideos();
+      context.read<MusicController>().refresh();
     }
   }
 
@@ -134,26 +139,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               currentIndex: _index,
               onSelected: _onTabSelected,
               items: [
+                NavItem(glyph: NavGlyphKind.home, label: context.s.navHome),
                 NavItem(
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
-                  label: context.s.navHome,
-                ),
-                NavItem(
-                  icon: Icons.folder_outlined,
-                  selectedIcon: Icons.folder_rounded,
+                  glyph: NavGlyphKind.folder,
                   label: context.s.navFolders,
                 ),
                 NavItem(
-                  icon: Icons.favorite_border_rounded,
-                  selectedIcon: Icons.favorite_rounded,
+                  glyph: NavGlyphKind.heart,
                   label: context.s.navFavorites,
                 ),
-                NavItem(
-                  icon: Icons.more_horiz_rounded,
-                  selectedIcon: Icons.more_horiz_rounded,
-                  label: context.s.navMore,
-                ),
+                NavItem(glyph: NavGlyphKind.music, label: context.s.navMusic),
               ],
             ),
           ],

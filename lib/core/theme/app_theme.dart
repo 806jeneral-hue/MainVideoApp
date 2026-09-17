@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'accent_palette.dart';
+import 'app_icons.dart';
+import '../../ui/common/app_icon.dart';
 
 /// The app's visual language: a warm off-white page, white cards that float on
 /// it with a very soft shadow, generous rounding, and one muted sage accent
@@ -156,6 +158,27 @@ class AppTheme {
           : cardShadow(theme.brightness),
     );
   }
+
+  /// The see-through glass of the bars floating at the bottom — navigation and
+  /// mini player. Paired with a real blur behind it ([FrostedBar]), so the
+  /// list scrolling underneath shows softly through.
+  static BoxDecoration frostedBar(ThemeData theme, BorderRadius radius) {
+    final isDark = theme.brightness == Brightness.dark;
+    return BoxDecoration(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.10)
+          : Colors.white.withValues(alpha: 0.55),
+      borderRadius: radius,
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.14)
+            : Colors.white.withValues(alpha: 0.90),
+      ),
+    );
+  }
+
+  /// How far the content behind a bottom bar is blurred.
+  static const double frostedBlur = 22;
 
   /// A slightly stronger lift for things that float over content: the
   /// bottom navigation and the mini player.
@@ -339,7 +362,7 @@ class AppTheme {
             radius: BorderRadius.circular(21),
             floating: true,
           ),
-          child: const Icon(Icons.arrow_back_rounded, size: 21),
+          child: const AppIcon(AppIcons.arrow_back_rounded, size: 21),
         ),
         closeButtonIconBuilder: (context) => Container(
           width: 42,
@@ -349,7 +372,7 @@ class AppTheme {
             radius: BorderRadius.circular(21),
             floating: true,
           ),
-          child: const Icon(Icons.close_rounded, size: 21),
+          child: const AppIcon(AppIcons.close_rounded, size: 21),
         ),
       ),
       cardTheme: CardThemeData(
@@ -393,15 +416,20 @@ class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
+        // Dims the page as lightly as the bottom sheets do.
+        barrierColor: Colors.black.withValues(alpha: 0.28),
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSheet),
         ),
       ),
+      // Text fields are glass too: a milky fill with a bright hairline edge.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceHigh,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : Colors.white.withValues(alpha: 0.72),
         hintStyle: TextStyle(color: muted),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
@@ -409,11 +437,11 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: pillRadius,
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: _glassEdge(isDark)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: pillRadius,
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: _glassEdge(isDark)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: pillRadius,
@@ -438,22 +466,34 @@ class AppTheme {
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: pillRadius),
       ),
+      // A soft switch: white thumb on the accent when on, on a translucent
+      // glass track when off, with no outline.
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? scheme.onPrimary : null,
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : (isDark ? const Color(0xFFD9DBD8) : Colors.white),
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? accentColor : null,
+          (states) => states.contains(WidgetState.selected)
+              ? accentColor
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : onSurface.withValues(alpha: 0.12)),
         ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+        thumbIcon: const WidgetStatePropertyAll(null),
       ),
+      // Round ticks, the same as the selection marks on the cards.
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? accentColor : null,
+          (states) => states.contains(WidgetState.selected)
+              ? accentColor
+              : Colors.transparent,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        checkColor: WidgetStatePropertyAll(scheme.onPrimary),
+        side: BorderSide(color: muted.withValues(alpha: 0.6), width: 1.6),
+        shape: const CircleBorder(),
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith(
@@ -468,10 +508,19 @@ class AppTheme {
         overlayColor: accentColor.withValues(alpha: 0.16),
         trackHeight: 3,
       ),
+      // Chips are the same glass pills as the filters on Home.
       chipTheme: ChipThemeData(
-        backgroundColor: surface,
-        selectedColor: accentWash,
-        side: BorderSide.none,
+        backgroundColor: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : Colors.white.withValues(alpha: 0.72),
+        selectedColor: Color.alphaBlend(
+          accentColor.withValues(alpha: isDark ? 0.24 : 0.16),
+          isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.white.withValues(alpha: 0.72),
+        ),
+        checkmarkColor: accentColor,
+        side: BorderSide(color: _glassEdge(isDark)),
         shape: RoundedRectangleBorder(borderRadius: pillRadius),
         labelStyle: text.labelLarge?.copyWith(color: onSurface),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -483,22 +532,60 @@ class AppTheme {
           ),
         ),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(color: accentColor),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: accentColor,
+        refreshBackgroundColor: isDark ? surfaceHigh : Colors.white,
+      ),
+      // Tooltips are small frosted pills.
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: isDark
+              ? surfaceHigh.withValues(alpha: 0.94)
+              : Colors.white.withValues(alpha: 0.94),
+          borderRadius: pillRadius,
+          border: Border.all(color: _glassEdge(isDark)),
+          boxShadow: floatingShadow(brightness),
+        ),
+        textStyle: TextStyle(
+          color: onSurface,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+      // The notice after an action floats as a milky glass card with the
+      // app's text colours, instead of a solid dark bar.
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: brightness == Brightness.dark
-            ? surfaceHigh
-            : onSurface,
+        elevation: 0,
+        backgroundColor: isDark
+            ? Color.alphaBlend(Colors.white.withValues(alpha: 0.10), surface)
+            : Colors.white.withValues(alpha: 0.96),
         contentTextStyle: TextStyle(
-          color: brightness == Brightness.dark ? onSurface : surface,
+          color: onSurface,
           fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        actionTextColor: accentColor,
+        closeIconColor: muted,
+        insetPadding: const EdgeInsets.fromLTRB(
+          pageMargin,
+          0,
+          pageMargin,
+          space12,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusCard),
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: _glassEdge(isDark)),
         ),
       ),
     );
   }
+
+  /// The bright hairline around a glass control.
+  static Color _glassEdge(bool isDark) => isDark
+      ? Colors.white.withValues(alpha: 0.10)
+      : Colors.white.withValues(alpha: 0.95);
 }
 
 /// Convenience accessors so widgets stop re-deriving the same colours.

@@ -12,6 +12,11 @@ import '../common/video_thumbnail.dart';
 import '../folders/add_to_playlist_sheet.dart';
 import 'move_to_sheet.dart';
 import 'video_info_page.dart';
+import '../common/glass_dialog.dart';
+import '../common/glass_controls.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
+import '../common/app_icon.dart';
 
 /// Long-press / "…" menu for a single video (phase 6).
 Future<void> showVideoActions(
@@ -95,11 +100,11 @@ class _VideoActionsSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            const SizedBox(height: AppTheme.space8),
             const SizedBox(height: 6),
             if (onPlay != null)
               _Action(
-                icon: Icons.play_arrow_rounded,
+                icon: AppIcons.play_arrow_rounded,
                 label: context.s.play,
                 onTap: () {
                   Navigator.pop(context);
@@ -108,7 +113,7 @@ class _VideoActionsSheet extends StatelessWidget {
               ),
             if (onSelect != null)
               _Action(
-                icon: Icons.checklist_rounded,
+                icon: AppIcons.checklist_rounded,
                 label: context.s.select,
                 onTap: () {
                   Navigator.pop(context);
@@ -116,7 +121,7 @@ class _VideoActionsSheet extends StatelessWidget {
                 },
               ),
             _Action(
-              icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+              icon: isFavorite ? AppIcons.favorite : AppIcons.favorite_border,
               label: isFavorite
                   ? context.s.removeFromFavorites
                   : context.s.addToFavorites,
@@ -124,13 +129,15 @@ class _VideoActionsSheet extends StatelessWidget {
               onTap: () => library.toggleFavorite(video.id),
             ),
             _Action(
-              icon: isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+              icon: isPinned
+                  ? AppIcons.push_pin_rounded
+                  : AppIcons.push_pin_outlined,
               label: isPinned ? context.s.unpinFromTop : context.s.pinToTop,
               iconColor: isPinned ? context.accent : null,
               onTap: () => library.toggleVideoPin(video.id),
             ),
             _Action(
-              icon: Icons.playlist_add_rounded,
+              icon: AppIcons.playlist_add_rounded,
               label: context.s.addToPlaylist,
               onTap: () async {
                 Navigator.pop(context);
@@ -139,7 +146,7 @@ class _VideoActionsSheet extends StatelessWidget {
             ),
             if (onRemoveFromPlaylist != null)
               _Action(
-                icon: Icons.playlist_remove_rounded,
+                icon: AppIcons.playlist_remove_rounded,
                 label: context.s.removeFromThisPlaylist,
                 onTap: () async {
                   Navigator.pop(context);
@@ -148,14 +155,14 @@ class _VideoActionsSheet extends StatelessWidget {
               ),
             _Action(
               icon: isHidden
-                  ? Icons.visibility_rounded
-                  : Icons.visibility_off_outlined,
+                  ? AppIcons.visibility_rounded
+                  : AppIcons.visibility_off_outlined,
               label: isHidden ? context.s.unhideVideo : context.s.hideVideo,
               iconColor: isHidden ? context.accent : null,
               onTap: () => library.toggleVideoHidden(video.id),
             ),
             _Action(
-              icon: Icons.drive_file_move_outline,
+              icon: AppIcons.drive_file_move_outline,
               label: context.s.moveTo,
               onTap: () async {
                 Navigator.pop(context);
@@ -163,7 +170,7 @@ class _VideoActionsSheet extends StatelessWidget {
               },
             ),
             _Action(
-              icon: Icons.drive_file_rename_outline_rounded,
+              icon: AppIcons.drive_file_rename_outline_rounded,
               label: context.s.rename,
               onTap: () async {
                 Navigator.pop(context);
@@ -171,7 +178,7 @@ class _VideoActionsSheet extends StatelessWidget {
               },
             ),
             _Action(
-              icon: Icons.info_outline_rounded,
+              icon: AppIcons.info_outline_rounded,
               label: context.s.videoInfo,
               onTap: () {
                 Navigator.pop(context);
@@ -183,7 +190,7 @@ class _VideoActionsSheet extends StatelessWidget {
               },
             ),
             _Action(
-              icon: Icons.delete_outline_rounded,
+              icon: AppIcons.delete_outline_rounded,
               label: context.s.deleteFromDevice,
               destructive: true,
               onTap: () async {
@@ -210,7 +217,7 @@ Future<void> _rename(
 
   final name = await showDialog<String>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => GlassDialog(
       title: Text(context.s.renameVideo),
       content: TextField(
         controller: controller,
@@ -235,7 +242,7 @@ Future<void> _rename(
   if (name == null || name.trim().isEmpty) return;
   final result = await library.renameVideo(video, name);
   messenger.showSnackBar(
-    SnackBar(
+    glassSnackBar(
       content: Text(
         result.ok ? s.renamed : (result.message ?? s.couldNotRename),
       ),
@@ -253,7 +260,7 @@ Future<void> _delete(
 
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => GlassDialog(
       title: Text(context.s.deleteVideoTitle),
       content: Text(context.s.deleteVideoBody(video.displayName)),
       actions: [
@@ -273,11 +280,11 @@ Future<void> _delete(
   if (confirmed != true) return;
   final result = await library.deleteVideo(video);
   if (result.ok) {
-    messenger.showSnackBar(SnackBar(content: Text(s.videoDeleted)));
+    messenger.showSnackBar(glassSnackBar(content: Text(s.videoDeleted)));
     return;
   }
   messenger.showSnackBar(
-    SnackBar(
+    glassSnackBar(
       content: Text(switch (result.status) {
         FileOpStatus.denied => s.permissionDenied,
         FileOpStatus.notFound => s.fileGone,
@@ -308,12 +315,10 @@ class _Action extends StatelessWidget {
         ? Colors.redAccent
         : Theme.of(context).colorScheme.onSurface;
 
-    return ListTile(
-      leading: Icon(icon, color: iconColor ?? color),
+    return GlassTile(
+      leading: AppIcon(icon, color: iconColor ?? color),
       title: Text(label, style: TextStyle(color: color)),
       onTap: onTap,
-      shape: const RoundedRectangleBorder(),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 22),
     );
   }
 }

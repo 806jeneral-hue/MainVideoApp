@@ -46,3 +46,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // The same ExoPlayer video_player already ships, so the app can switch the
+    // player into scrubbing mode while a swipe seeks (see VideoScrubbing.kt).
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+}

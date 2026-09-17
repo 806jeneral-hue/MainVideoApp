@@ -110,7 +110,13 @@ class _GestureLayerState extends State<GestureLayer> {
     if (_gesture == _Gesture.undecided) {
       if (_travel.distance < _slop) return;
       _gesture = _decide();
-      if (_gesture == _Gesture.seek) _player.beginScrub(_seekStart);
+      // Seeking, volume and brightness clear the screen down to their readout.
+      if (_gesture == _Gesture.seek ||
+          _gesture == _Gesture.volume ||
+          _gesture == _Gesture.brightness) {
+        _player.hideControlsNow();
+      }
+      if (_gesture == _Gesture.seek) _player.beginSwipeSeek(_seekStart);
       if (_gesture == _Gesture.volume) _levelStart = _player.volume;
       if (_gesture == _Gesture.brightness) _levelStart = _player.brightness;
     }
@@ -144,18 +150,34 @@ class _GestureLayerState extends State<GestureLayer> {
     return _Gesture.dismiss;
   }
 
+  /// The last time the picture was moved during a swipe.
+  DateTime _lastPreview = DateTime.fromMillisecondsSinceEpoch(0);
+
   void _updateSeek() {
     final total = _player.duration;
     if (total == Duration.zero) return;
 
-    final deltaMs =
-        (_travel.dx / _size.width) * total.inMilliseconds * _seekFraction;
+    // How far a full-width swipe moves is a Playback Settings option: a fixed
+    // amount, or in proportion to the length of the video.
+    final setting = _player.settings.swipeSeekSeconds;
+    final fullSwipeMs = setting > 0
+        ? setting * 1000
+        : total.inMilliseconds * _seekFraction;
+    final deltaMs = (_travel.dx / _size.width) * fullSwipeMs;
     var target = _seekStart + Duration(milliseconds: deltaMs.round());
     if (target < Duration.zero) target = Duration.zero;
     if (target > total) target = total;
 
     Haptics.tick();
+    // The frame itself follows the finger — about twenty new frames a second
+    // in the player's scrubbing mode — and the time shows in a small pill at
+    // the top.
     _player.updateScrub(target, withHud: true);
+    final now = DateTime.now();
+    if (now.difference(_lastPreview) > const Duration(milliseconds: 45)) {
+      _lastPreview = now;
+      _player.previewSeek(target);
+    }
   }
 
   void _updateLevel() {
@@ -181,7 +203,7 @@ class _GestureLayerState extends State<GestureLayer> {
   void _onScaleEnd(ScaleEndDetails details) {
     switch (_gesture) {
       case _Gesture.seek:
-        _player.endScrub();
+        _player.endSwipeSeek();
         _player.hideHud();
 
       case _Gesture.volume:

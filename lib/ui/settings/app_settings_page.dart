@@ -16,6 +16,10 @@ import 'hidden_videos_page.dart';
 import 'recycle_bin_page.dart';
 import 'scan_folders_page.dart';
 import 'widgets/settings_tiles.dart';
+import '../common/glass_dialog.dart';
+import '../common/glass_controls.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Phase 7 — the general settings screen that gathers appearance, history,
 /// and links out to the playback and folder screens.
@@ -36,14 +40,14 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.dark_mode_outlined,
+                icon: AppIcons.dark_mode_outlined,
                 title: context.s.darkMode,
                 subtitle: context.s.darkModeBody,
                 value: settings.isDark,
                 onChanged: settings.toggleDarkMode,
               ),
               SettingsSwitch(
-                icon: Icons.brightness_auto_rounded,
+                icon: AppIcons.brightness_auto_rounded,
                 title: context.s.followSystemTheme,
                 subtitle: context.s.followSystemThemeBody,
                 value: settings.themeMode == ThemeMode.system,
@@ -52,7 +56,7 @@ class AppSettingsPage extends StatelessWidget {
                 ),
               ),
               SettingsTile(
-                icon: Icons.translate_rounded,
+                icon: AppIcons.translate_rounded,
                 title: context.s.language,
                 subtitle: context.s.languageBody,
                 trailing: Text(
@@ -106,14 +110,14 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.history_rounded,
+                icon: AppIcons.history_rounded,
                 title: context.s.showWatchHistory,
                 subtitle: context.s.showWatchHistoryBody,
                 value: settings.showHistory,
                 onChanged: settings.setShowHistory,
               ),
               SettingsTile(
-                icon: Icons.delete_sweep_outlined,
+                icon: AppIcons.delete_sweep_outlined,
                 title: context.s.clearWatchHistory,
                 subtitle: context.s.clearWatchHistoryBody,
                 destructive: true,
@@ -125,7 +129,7 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsTile(
-                icon: Icons.play_circle_outline_rounded,
+                icon: AppIcons.play_circle_outline_rounded,
                 title: context.s.playbackSettings,
                 subtitle: context.s.playbackSettingsBody,
                 onTap: () => Navigator.of(context).push(
@@ -140,7 +144,7 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsTile(
-                icon: Icons.rule_folder_outlined,
+                icon: AppIcons.rule_folder_outlined,
                 title: context.s.foldersToScan,
                 subtitle: library.scanFolders.isEmpty
                     ? context.s.allFoldersHidden(library.hiddenFolders.length)
@@ -153,14 +157,14 @@ class AppSettingsPage extends StatelessWidget {
                 ),
               ),
               SettingsTile(
-                icon: Icons.refresh_rounded,
+                icon: AppIcons.refresh_rounded,
                 title: context.s.rescanDevice,
                 subtitle: context.s.videoCount(library.allVideos.length),
                 onTap: () async {
                   final messenger = ScaffoldMessenger.of(context);
                   final message = context.s.libraryRescanned;
                   await library.refresh();
-                  messenger.showSnackBar(SnackBar(content: Text(message)));
+                  messenger.showSnackBar(glassSnackBar(content: Text(message)));
                 },
               ),
             ],
@@ -169,14 +173,14 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.restore_from_trash_rounded,
+                icon: AppIcons.restore_from_trash_rounded,
                 title: context.s.recycleBinToggle,
                 subtitle: context.s.recycleBinToggleBody,
                 value: settings.recycleBinEnabled,
                 onChanged: settings.setRecycleBinEnabled,
               ),
               SettingsTile(
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.delete_outline_rounded,
                 title: context.s.recycleBin,
                 subtitle: context.s.binCount(library.recycleBinCount),
                 onTap: () => Navigator.of(context).push(
@@ -184,7 +188,7 @@ class AppSettingsPage extends StatelessWidget {
                 ),
               ),
               SettingsTile(
-                icon: Icons.visibility_off_outlined,
+                icon: AppIcons.visibility_off_outlined,
                 title: context.s.hiddenVideos,
                 subtitle: library.hiddenVideoCount == 0
                     ? context.s.hiddenVideosBody
@@ -199,7 +203,7 @@ class AppSettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsTile(
-                icon: Icons.info_outline_rounded,
+                icon: AppIcons.info_outline_rounded,
                 title: context.s.aboutApp,
                 onTap: () => Navigator.of(
                   context,
@@ -243,11 +247,11 @@ class AppSettingsPage extends StatelessWidget {
               ),
             ),
             for (final code in options)
-              ListTile(
+              GlassTile(
                 leading: Icon(
                   code == null
-                      ? Icons.phone_android_rounded
-                      : Icons.translate_rounded,
+                      ? AppIcons.phone_android_rounded
+                      : AppIcons.translate_rounded,
                   color: settings.localeCode == code ? context.accent : null,
                 ),
                 title: Text(
@@ -255,8 +259,9 @@ class AppSettingsPage extends StatelessWidget {
                       ? context.s.systemLanguage
                       : AppLocalizations.stringsFor(Locale(code)).languageName,
                 ),
+                selected: settings.localeCode == code,
                 trailing: settings.localeCode == code
-                    ? Icon(Icons.check_rounded, color: context.accent)
+                    ? Icon(AppIcons.check_rounded, color: context.accent)
                     : null,
                 onTap: () {
                   settings.setLocaleCode(code);
@@ -279,7 +284,7 @@ class AppSettingsPage extends StatelessWidget {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => GlassDialog(
         title: Text(context.s.clearHistoryConfirmTitle),
         content: Text(context.s.clearHistoryConfirmBody),
         actions: [
@@ -298,7 +303,7 @@ class AppSettingsPage extends StatelessWidget {
 
     if (confirmed != true) return;
     await library.clearHistory();
-    messenger.showSnackBar(SnackBar(content: Text(done)));
+    messenger.showSnackBar(glassSnackBar(content: Text(done)));
   }
 }
 
@@ -347,7 +352,7 @@ class _BackgroundCard extends StatelessWidget {
                         ? ColoredBox(
                             color: theme.colorScheme.surfaceContainerHighest,
                             child: Icon(
-                              Icons.wallpaper_rounded,
+                              AppIcons.wallpaper_rounded,
                               color: context.muted,
                             ),
                           )
@@ -367,7 +372,7 @@ class _BackgroundCard extends StatelessWidget {
                     children: [
                       FilledButton.icon(
                         onPressed: _choose,
-                        icon: const Icon(Icons.photo_library_outlined),
+                        icon: const Icon(AppIcons.photo_library_outlined),
                         label: Text(
                           path == null ? s.chooseImage : s.changeImage,
                         ),
@@ -386,7 +391,11 @@ class _BackgroundCard extends StatelessWidget {
               const SizedBox(height: AppTheme.space12),
               Row(
                 children: [
-                  Icon(Icons.blur_on_rounded, size: 20, color: context.muted),
+                  Icon(
+                    AppIcons.blur_on_rounded,
+                    size: 20,
+                    color: context.muted,
+                  ),
                   const SizedBox(width: AppTheme.space8),
                   Text(s.backgroundBlur, style: theme.textTheme.bodyMedium),
                   Expanded(
@@ -439,7 +448,7 @@ class _AccentSwatch extends StatelessWidget {
           ),
           child: selected
               ? Icon(
-                  Icons.check_rounded,
+                  AppIcons.check_rounded,
                   color: theme.colorScheme.onPrimary,
                   size: 20,
                 )

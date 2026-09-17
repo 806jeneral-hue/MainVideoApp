@@ -6,6 +6,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/video.dart';
 import '../../data/services/thumbnail_service.dart';
+import '../../core/theme/app_icons.dart';
+import 'app_icon.dart';
 
 /// Auto-generated thumbnail with the duration badge and, when the video has
 /// been started before, a thin resume bar along the bottom.
@@ -126,7 +128,7 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
                                 ),
                               )
                             : Icon(
-                                Icons.movie_outlined,
+                                AppIcons.movie_outlined,
                                 color: context.muted.withValues(alpha: 0.7),
                               ),
                       ),
@@ -206,11 +208,11 @@ class _PlayGlyph extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.black.withValues(alpha: 0.30),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+        color: Colors.white.withValues(alpha: 0.24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
       ),
-      child: const Icon(
-        Icons.play_arrow_rounded,
+      child: const AppIcon(
+        AppIcons.play_arrow_rounded,
         size: 22,
         color: Colors.white,
       ),

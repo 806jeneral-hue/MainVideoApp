@@ -4,7 +4,9 @@ import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.media.MediaScannerConnection
 import android.os.Build
+import android.provider.MediaStore
 import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -25,8 +27,70 @@ class MainActivity : FlutterActivity() {
     private val playbackChannelName = "main_video/playback"
     private var playbackChannel: MethodChannel? = null
 
+    private var musicLibrary: MusicLibrary? = null
+    private var mediaIndexChannel: MethodChannel? = null
+    private var videoScrubbing: VideoScrubbing? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        musicLibrary = MusicLibrary(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        videoScrubbing = VideoScrubbing(flutterEngine)
+
+        // Refreshes Android's media index for files changed or removed directly,
+        // so the gallery and other apps stop showing them — silently, with no
+        // confirmation dialog.
+        mediaIndexChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "main_video/media_index"
+        ).also {
+            it.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "scan" -> {
+                        val paths = call.arguments<List<String>>() ?: emptyList()
+                        if (paths.isNotEmpty()) {
+                            MediaScannerConnection.scanFile(
+                                applicationContext,
+                                paths.toTypedArray(),
+                                null,
+                                null
+                            )
+                        }
+                        result.success(null)
+                    }
+
+                    // When each video was added to the device, by MediaStore id.
+                    // This is the real "added" date: a video unzipped or copied
+                    // today counts as new even if it was filmed years ago.
+                    "videoDatesAdded" -> Thread {
+                        val dates = HashMap<String, Long>()
+                        try {
+                            applicationContext.contentResolver.query(
+                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                arrayOf(
+                                    MediaStore.Video.Media._ID,
+                                    MediaStore.Video.Media.DATE_ADDED
+                                ),
+                                null,
+                                null,
+                                null
+                            )?.use { cursor ->
+                                val id = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                                val added = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+                                while (cursor.moveToNext()) {
+                                    dates[cursor.getLong(id).toString()] = cursor.getLong(added)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // An empty map leaves the scanner on its own dates.
+                        }
+                        runOnUiThread { result.success(dates) }
+                    }.start()
+
+                    else -> result.notImplemented()
+                }
+            }
+        }
 
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).also {
             it.setMethodCallHandler { call, result ->
@@ -149,6 +213,12 @@ class MainActivity : FlutterActivity() {
         playbackChannel?.setMethodCallHandler(null)
         playbackChannel = null
         PlaybackService.onAction = null
+        musicLibrary?.dispose()
+        mediaIndexChannel?.setMethodCallHandler(null)
+        videoScrubbing?.dispose()
+        videoScrubbing = null
+        mediaIndexChannel = null
+        musicLibrary = null
         super.onDestroy()
     }
 }

@@ -9,6 +9,9 @@ import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
 import '../common/empty_state.dart';
 import '../common/video_thumbnail.dart';
+import '../common/glass_controls.dart';
+import '../../core/theme/app_icons.dart';
+import '../common/app_icon.dart';
 
 /// Multi-select picker used when adding videos to a playlist. Videos can be
 /// picked from anywhere on the device, not just one folder (phase 3).
@@ -64,7 +67,7 @@ class _VideoPickerPageState extends State<VideoPickerPage> {
               onChanged: (value) => setState(() => _query = value),
               decoration: InputDecoration(
                 hintText: context.s.searchVideos,
-                prefixIcon: const Icon(Icons.search, size: 20),
+                prefixIcon: const AppIcon(AppIcons.search, size: 20),
                 isDense: true,
               ),
             ),
@@ -73,16 +76,14 @@ class _VideoPickerPageState extends State<VideoPickerPage> {
       ),
       floatingActionButton: _selected.isEmpty
           ? null
-          : FloatingActionButton.extended(
-              backgroundColor: AppTheme.accent,
-              foregroundColor: Colors.white,
+          : GlassFab(
               onPressed: () => Navigator.pop(context, _selected.toList()),
-              icon: const Icon(Icons.check_rounded),
+              icon: const Icon(AppIcons.check_rounded),
               label: Text(context.s.addCount(_selected.length)),
             ),
       body: videos.isEmpty
           ? EmptyState(
-              icon: Icons.movie_outlined,
+              icon: AppIcons.movie_outlined,
               title: context.s.nothingToAdd,
               message: context.s.nothingToAddBody,
             )

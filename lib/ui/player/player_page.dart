@@ -17,6 +17,8 @@ import 'mini_player.dart';
 import 'widgets/gesture_layer.dart';
 import 'widgets/player_controls.dart';
 import 'widgets/player_hud.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Starts playing a queue and opens the full-screen player.
 ///
@@ -392,7 +394,7 @@ class _PlayerPageState extends State<PlayerPage>
 
         if (locked) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            glassSnackBar(
               content: Text(context.s.screenLocked),
               duration: const Duration(milliseconds: 1400),
             ),
@@ -476,7 +478,11 @@ class _MorphStage extends StatelessWidget {
     // The page underneath lays its bars out with the same inset once the
     // system bars are back, which happens as soon as the player shrinks.
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final cardDecoration = context.glassSurface(floating: true);
+    // Lands on the mini player's own glass.
+    final cardDecoration = AppTheme.frostedBar(
+      Theme.of(context),
+      AppTheme.cardRadius,
+    ).copyWith(boxShadow: context.floatingShadow);
     const fullScreenDecoration = BoxDecoration(color: Colors.black);
 
     return LayoutBuilder(
@@ -622,7 +628,11 @@ class _VideoSurface extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded, color: context.muted, size: 40),
+              Icon(
+                AppIcons.error_outline_rounded,
+                color: context.muted,
+                size: 40,
+              ),
               const SizedBox(height: 16),
               Text(
                 error,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Phase 7 — version and a short note about what the app does.
 class AboutPage extends StatelessWidget {
@@ -29,7 +30,7 @@ class AboutPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppTheme.radiusSheet),
               ),
               child: Icon(
-                Icons.play_circle_fill_rounded,
+                AppIcons.play_circle_fill_rounded,
                 size: 44,
                 color: context.accent,
               ),

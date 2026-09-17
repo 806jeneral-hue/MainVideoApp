@@ -4,6 +4,9 @@
          Android 13+ permission; READ_EXTERNAL_STORAGE covers Android 12 and
          below. -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- The music section (Android 13+); older versions read audio under
+         READ_EXTERNAL_STORAGE below. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />

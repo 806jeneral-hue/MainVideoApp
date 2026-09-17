@@ -18,9 +18,12 @@ import '../common/tab_scroll.dart';
 import '../common/video_thumbnail.dart';
 import '../home/widgets/library_status_view.dart';
 import '../settings/scan_folders_page.dart';
+import '../settings/settings_button.dart';
 import 'add_to_playlist_sheet.dart';
 import 'collection_page.dart';
 import 'playlist_style_sheet.dart';
+import '../common/glass_controls.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Folders and playlists live side by side here — phase 3 treats them as the
 /// same idea, with Favorites pinned at the top of the same list.
@@ -47,7 +50,7 @@ class FoldersPage extends StatelessWidget {
 
     final favoriteVideos = library.favoriteVideos;
     final favorites = _Entry(
-      icon: Icons.favorite_rounded,
+      icon: AppIcons.favorite_rounded,
       iconColor: context.accent,
       title: context.s.favorites,
       subtitle: context.s.videoCount(favoriteVideos.length),
@@ -79,7 +82,7 @@ class FoldersPage extends StatelessWidget {
     final folderEntries = [
       for (final folder in folders)
         _Entry(
-          icon: Icons.folder_rounded,
+          icon: AppIcons.folder_rounded,
           iconColor: Theme.of(
             context,
           ).colorScheme.onSurface.withValues(alpha: 0.7),
@@ -95,18 +98,20 @@ class FoldersPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: SettingsButton.leading(),
+        leadingWidth: SettingsButton.leadingWidth,
         title: Text(context.s.folders),
         actions: [
           HeaderAction(
             tooltip: isGrid ? context.s.listView : context.s.gridView,
             icon: Icon(
-              isGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
+              isGrid ? AppIcons.view_list_rounded : AppIcons.grid_view_rounded,
             ),
             onPressed: library.toggleViewMode,
           ),
           HeaderAction(
             tooltip: context.s.chooseFoldersToScan,
-            icon: const Icon(Icons.rule_folder_outlined),
+            icon: const Icon(AppIcons.rule_folder_outlined),
             onPressed: () => _open(context, const ScanFoldersPage()),
           ),
           const SizedBox(width: 16),
@@ -117,9 +122,7 @@ class FoldersPage extends StatelessWidget {
       // Scaffold owns that bar and cannot do it for us.
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-        child: FloatingActionButton.extended(
-          backgroundColor: context.accent,
-          foregroundColor: Colors.white,
+        child: GlassFab(
           onPressed: () async {
             final name = await promptForPlaylistName(context);
             if (name == null || !context.mounted) return;
@@ -127,7 +130,7 @@ class FoldersPage extends StatelessWidget {
             if (!context.mounted) return;
             _open(context, CollectionPage.playlist(playlist.id));
           },
-          icon: const Icon(Icons.add_rounded),
+          icon: const Icon(AppIcons.add_rounded),
           label: Text(context.s.newPlaylist),
         ),
       ),
@@ -149,7 +152,7 @@ class FoldersPage extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.only(top: 40),
                     child: EmptyState(
-                      icon: Icons.folder_off_outlined,
+                      icon: AppIcons.folder_off_outlined,
                       title: context.s.noFoldersToShow,
                       message: context.s.noFoldersToShowBody,
                     ),
@@ -193,11 +196,11 @@ class FoldersPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
+            GlassTile(
               leading: Icon(
                 playlist.pinned
-                    ? Icons.push_pin_rounded
-                    : Icons.push_pin_outlined,
+                    ? AppIcons.push_pin_rounded
+                    : AppIcons.push_pin_outlined,
                 color: playlist.pinned ? context.accent : null,
               ),
               title: Text(
@@ -208,7 +211,7 @@ class FoldersPage extends StatelessWidget {
                 library.togglePlaylistPin(playlist.id);
               },
             ),
-            ListTile(
+            GlassTile(
               leading: Icon(
                 PlaylistStyle.iconFor(playlist.iconKey),
                 color: PlaylistStyle.colorFor(playlist.colorValue),
@@ -219,8 +222,8 @@ class FoldersPage extends StatelessWidget {
                 await showPlaylistStyleSheet(context, playlist);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline_rounded),
+            GlassTile(
+              leading: const Icon(AppIcons.drive_file_rename_outline_rounded),
               title: Text(context.s.renamePlaylist),
               onTap: () async {
                 Navigator.pop(sheetContext);
@@ -235,9 +238,9 @@ class FoldersPage extends StatelessWidget {
                 }
               },
             ),
-            ListTile(
+            GlassTile(
               leading: const Icon(
-                Icons.delete_outline_rounded,
+                AppIcons.delete_outline_rounded,
                 color: Colors.redAccent,
               ),
               title: Text(
@@ -278,12 +281,12 @@ class FoldersPage extends StatelessWidget {
                 ),
               ),
             ),
-            const Divider(height: 1),
-            ListTile(
+            const SizedBox(height: AppTheme.space8),
+            GlassTile(
               leading: Icon(
                 library.isFolderPinned(folder.path)
-                    ? Icons.push_pin_rounded
-                    : Icons.push_pin_outlined,
+                    ? AppIcons.push_pin_rounded
+                    : AppIcons.push_pin_outlined,
                 color: library.isFolderPinned(folder.path)
                     ? context.accent
                     : null,
@@ -298,8 +301,8 @@ class FoldersPage extends StatelessWidget {
                 library.toggleFolderPin(folder.path);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.visibility_off_outlined),
+            GlassTile(
+              leading: const Icon(AppIcons.visibility_off_outlined),
               title: Text(context.s.hideThisFolder),
               subtitle: Text(context.s.hideThisFolderBody),
               onTap: () {
@@ -307,8 +310,8 @@ class FoldersPage extends StatelessWidget {
                 library.toggleHiddenFolder(folder.path);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add_rounded),
+            GlassTile(
+              leading: const Icon(AppIcons.playlist_add_rounded),
               title: Text(context.s.addAllToPlaylist),
               onTap: () async {
                 Navigator.pop(sheetContext);
@@ -460,7 +463,7 @@ class _EntryRow extends StatelessWidget {
                           children: [
                             if (entry.pinned) ...[
                               Icon(
-                                Icons.push_pin_rounded,
+                                AppIcons.push_pin_rounded,
                                 size: 13,
                                 color: context.accent,
                               ),
@@ -494,7 +497,7 @@ class _EntryRow extends StatelessWidget {
                   ),
                   if (entry.onMenu != null)
                     IconButton(
-                      icon: const Icon(Icons.more_vert),
+                      icon: const Icon(AppIcons.more_vert),
                       onPressed: entry.onMenu,
                       color: context.muted,
                     )
@@ -589,7 +592,7 @@ class _EntryTile extends StatelessWidget {
                           child: IconButton(
                             iconSize: 18,
                             visualDensity: VisualDensity.compact,
-                            icon: const Icon(Icons.more_vert),
+                            icon: const Icon(AppIcons.more_vert),
                             color: Colors.white,
                             onPressed: entry.onMenu,
                           ),

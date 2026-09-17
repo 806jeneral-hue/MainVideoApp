@@ -7,6 +7,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/playlist_style.dart';
 import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
+import '../common/glass_controls.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Moves videos somewhere else — a real device folder, or another playlist.
 ///
@@ -76,7 +79,7 @@ class _MoveToSheet extends StatelessWidget {
                 ),
               ),
             ),
-            const Divider(height: 1),
+            const SizedBox(height: AppTheme.space8),
             Flexible(
               child: ListView(
                 shrinkWrap: true,
@@ -85,7 +88,7 @@ class _MoveToSheet extends StatelessWidget {
                   if (fromPlaylistId != null && playlists.isNotEmpty) ...[
                     _Label(context.s.playlists),
                     for (final playlist in playlists)
-                      ListTile(
+                      GlassTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 20,
                         ),
@@ -107,19 +110,19 @@ class _MoveToSheet extends StatelessWidget {
                             videoIds: videos.map((v) => v.id),
                           );
                           messenger.showSnackBar(
-                            SnackBar(content: Text(message)),
+                            glassSnackBar(content: Text(message)),
                           );
                         },
                       ),
                   ],
                   _Label(context.s.deviceFolders),
                   for (final folder in folders)
-                    ListTile(
+                    GlassTile(
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 20,
                       ),
                       leading: _Avatar(
-                        icon: Icons.folder_rounded,
+                        icon: AppIcons.folder_rounded,
                         color: theme.colorScheme.onSurface.withValues(
                           alpha: 0.7,
                         ),
@@ -158,7 +161,7 @@ class _MoveToSheet extends StatelessWidget {
     final failed = videos.length - result.moved;
 
     messenger.showSnackBar(
-      SnackBar(
+      glassSnackBar(
         content: Text(
           failed == 0
               ? s.movedCount(result.moved)

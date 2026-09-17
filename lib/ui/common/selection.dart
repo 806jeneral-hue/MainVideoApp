@@ -7,6 +7,11 @@ import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
 import '../folders/add_to_playlist_sheet.dart';
 import '../video/move_to_sheet.dart';
+import '../../core/theme/app_theme.dart';
+import 'glass.dart';
+import 'glass_dialog.dart';
+import 'glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Multi-select state shared by every screen that lists videos.
 ///
@@ -92,20 +97,30 @@ AppBar buildSelectionAppBar({
   required VoidCallback onClose,
   required VoidCallback onSelectAll,
 }) {
+  // Floating glass buttons, the same as every other header in the app.
   return AppBar(
-    leading: IconButton(
-      icon: const Icon(Icons.close_rounded),
-      onPressed: onClose,
-      tooltip: context.s.cancel,
+    leadingWidth: AppTheme.pageMargin + 42 + AppTheme.space8,
+    leading: Padding(
+      padding: const EdgeInsetsDirectional.only(start: AppTheme.pageMargin),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: GlassIconButton(
+          icon: AppIcons.close_rounded,
+          tooltip: context.s.cancel,
+          size: 42,
+          iconSize: 21,
+          onPressed: onClose,
+        ),
+      ),
     ),
     title: Text(context.s.selectedCount(count)),
     actions: [
-      IconButton(
-        icon: const Icon(Icons.select_all_rounded),
+      HeaderAction(
+        icon: const Icon(AppIcons.select_all_rounded),
         onPressed: onSelectAll,
         tooltip: context.s.selectAll,
       ),
-      const SizedBox(width: 6),
+      const SizedBox(width: AppTheme.pageMargin),
     ],
   );
 }
@@ -129,102 +144,114 @@ class SelectionActionsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final library = context.read<LibraryController>();
-    final theme = Theme.of(context);
     final allFavorite =
         selected.isNotEmpty && selected.every((v) => library.isFavorite(v.id));
 
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 66,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _Action(
-                icon: allFavorite
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                label: allFavorite ? context.s.unfavorite : context.s.favorite,
-                onTap: selected.isEmpty
-                    ? null
-                    : () async {
-                        await library.setFavorites(
-                          selected.map((v) => v.id),
-                          !allFavorite,
-                        );
-                        onDone();
-                      },
-              ),
-              _Action(
-                icon: Icons.playlist_add_rounded,
-                label: context.s.addTo,
-                onTap: selected.isEmpty
-                    ? null
-                    : () async {
-                        await showAddToPlaylistSheet(
-                          context,
-                          selected.map((v) => v.id).toList(),
-                        );
-                        onDone();
-                      },
-              ),
-              _Action(
-                icon: Icons.visibility_off_outlined,
-                label: context.s.hideVideo,
-                onTap: selected.isEmpty
-                    ? null
-                    : () async {
-                        await library.setVideosHidden(
-                          selected.map((v) => v.id),
-                          true,
-                        );
-                        onDone();
-                      },
-              ),
-              _Action(
-                icon: Icons.drive_file_move_outline,
-                label: context.s.move,
-                onTap: selected.isEmpty
-                    ? null
-                    : () async {
-                        await showMoveToSheet(
-                          context,
-                          selected,
-                          fromPlaylistId: playlistId,
-                        );
-                        onDone();
-                      },
-              ),
-              if (playlistId != null)
+    // A floating glass bar, shaped like the main navigation it replaces
+    // while the selection is open.
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppTheme.space20,
+          AppTheme.space4,
+          AppTheme.space20,
+          AppTheme.space12,
+        ),
+        child: GlassSurface(
+          radius: BorderRadius.circular(34),
+          floating: true,
+          child: SizedBox(
+            height: 68,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
                 _Action(
-                  icon: Icons.playlist_remove_rounded,
-                  label: context.s.remove,
+                  icon: allFavorite
+                      ? AppIcons.favorite_rounded
+                      : AppIcons.favorite_border_rounded,
+                  label: allFavorite
+                      ? context.s.unfavorite
+                      : context.s.favorite,
                   onTap: selected.isEmpty
                       ? null
                       : () async {
-                          await library.removeManyFromPlaylist(
-                            playlistId!,
+                          await library.setFavorites(
                             selected.map((v) => v.id),
+                            !allFavorite,
                           );
                           onDone();
                         },
                 ),
-              _Action(
-                icon: Icons.delete_outline_rounded,
-                label: context.s.delete,
-                destructive: true,
-                onTap: selected.isEmpty
-                    ? null
-                    : () => _confirmBulkDelete(
-                        context,
-                        library,
-                        selected,
-                        onDone,
-                      ),
-              ),
-            ],
+                _Action(
+                  icon: AppIcons.playlist_add_rounded,
+                  label: context.s.addTo,
+                  onTap: selected.isEmpty
+                      ? null
+                      : () async {
+                          await showAddToPlaylistSheet(
+                            context,
+                            selected.map((v) => v.id).toList(),
+                          );
+                          onDone();
+                        },
+                ),
+                _Action(
+                  icon: AppIcons.visibility_off_outlined,
+                  label: context.s.hideVideo,
+                  onTap: selected.isEmpty
+                      ? null
+                      : () async {
+                          await library.setVideosHidden(
+                            selected.map((v) => v.id),
+                            true,
+                          );
+                          onDone();
+                        },
+                ),
+                _Action(
+                  icon: AppIcons.drive_file_move_outline,
+                  label: context.s.move,
+                  onTap: selected.isEmpty
+                      ? null
+                      : () async {
+                          await showMoveToSheet(
+                            context,
+                            selected,
+                            fromPlaylistId: playlistId,
+                          );
+                          onDone();
+                        },
+                ),
+                if (playlistId != null)
+                  _Action(
+                    icon: AppIcons.playlist_remove_rounded,
+                    label: context.s.remove,
+                    onTap: selected.isEmpty
+                        ? null
+                        : () async {
+                            await library.removeManyFromPlaylist(
+                              playlistId!,
+                              selected.map((v) => v.id),
+                            );
+                            onDone();
+                          },
+                  ),
+                _Action(
+                  icon: AppIcons.delete_outline_rounded,
+                  label: context.s.delete,
+                  destructive: true,
+                  onTap: selected.isEmpty
+                      ? null
+                      : () => _confirmBulkDelete(
+                          context,
+                          library,
+                          selected,
+                          onDone,
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -245,7 +272,7 @@ Future<void> _confirmBulkDelete(
 
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => GlassDialog(
       title: Text(context.s.deleteManyTitle(selected.length)),
       content: Text(context.s.deleteManyBody),
       actions: [
@@ -269,7 +296,7 @@ Future<void> _confirmBulkDelete(
 
   final failed = selected.length - result.deleted;
   messenger.showSnackBar(
-    SnackBar(
+    glassSnackBar(
       content: Text(
         failed == 0
             ? s.deletedCount(result.deleted)

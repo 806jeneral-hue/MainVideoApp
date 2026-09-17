@@ -6,8 +6,14 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/enums.dart';
+import '../../../data/models/song.dart';
+import '../../../data/models/video.dart';
 import '../../../state/playback_controller.dart';
 import '../../common/video_thumbnail.dart';
+import '../../music/widgets/album_art.dart';
+import '../../common/glass_controls.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../common/app_icon.dart';
 
 const List<double> kSpeedOptions = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 const List<int> kSleepMinutes = [15, 30, 45, 60];
@@ -36,7 +42,7 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
               children: [
                 _SheetTitle(s.more),
                 _OptionRow(
-                  icon: Icons.lock_outline_rounded,
+                  icon: AppIcons.lock_outline_rounded,
                   title: s.lock,
                   value: '',
                   onTap: () {
@@ -45,7 +51,7 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                   },
                 ),
                 _OptionRow(
-                  icon: Icons.speed_rounded,
+                  icon: AppIcons.speed_rounded,
                   title: s.playbackSpeed,
                   value: Fmt.speed(player.speed),
                   active: player.speed != 1.0,
@@ -56,8 +62,8 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                 ),
                 _OptionRow(
                   icon: switch (player.loopMode) {
-                    LoopMode.one => Icons.repeat_one_rounded,
-                    _ => Icons.repeat_rounded,
+                    LoopMode.one => AppIcons.repeat_one_rounded,
+                    _ => AppIcons.repeat_rounded,
                   },
                   title: s.repeat,
                   value: player.loopMode.label(s),
@@ -65,7 +71,7 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                   onTap: player.cycleLoopMode,
                 ),
                 _OptionRow(
-                  icon: Icons.shuffle_rounded,
+                  icon: AppIcons.shuffle_rounded,
                   title: s.shuffle,
                   value: player.shuffle ? s.repeatAll : s.repeatOff,
                   active: player.shuffle,
@@ -77,7 +83,7 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                 ),
                 if (settings.abRepeatEnabled)
                   _OptionRow(
-                    icon: Icons.repeat_one_on_rounded,
+                    icon: AppIcons.repeat_one_on_rounded,
                     title: s.abRepeat,
                     value: player.pointA == null
                         ? s.repeatOff
@@ -95,7 +101,7 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                   ),
                 if (settings.sleepTimerEnabled)
                   _OptionRow(
-                    icon: Icons.bedtime_outlined,
+                    icon: AppIcons.bedtime_outlined,
                     title: s.sleepTimer,
                     value: sleeping == null
                         ? s.repeatOff
@@ -137,7 +143,7 @@ class _OptionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active ? context.accent : context.muted;
 
-    return ListTile(
+    return GlassTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
       leading: Container(
@@ -259,7 +265,7 @@ Future<void> showSleepTimerSheet(BuildContext context) {
                         player.cancelSleepTimer();
                         Navigator.pop(context);
                       },
-                      icon: const Icon(Icons.close_rounded, size: 18),
+                      icon: const AppIcon(AppIcons.close_rounded, size: 18),
                       label: Text(context.s.cancelTimer),
                     ),
                   ),
@@ -298,20 +304,25 @@ Future<void> showQueueSheet(BuildContext context) {
                     shrinkWrap: true,
                     itemCount: player.queue.length,
                     itemBuilder: (context, index) {
-                      final video = player.queue[index];
+                      final item = player.queue[index];
                       final isCurrent = index == player.index;
 
-                      return ListTile(
+                      return GlassTile(
+                        selected: isCurrent,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                         ),
-                        leading: VideoThumbnail(
-                          video: video,
-                          width: 76,
-                          height: 46,
-                        ),
+                        leading: switch (item) {
+                          Song song => AlbumArt(song: song, size: 46),
+                          Video video => VideoThumbnail(
+                            video: video,
+                            width: 76,
+                            height: 46,
+                          ),
+                          _ => const SizedBox(width: 46),
+                        },
                         title: Text(
-                          video.displayName,
+                          item.displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -321,10 +332,16 @@ Future<void> showQueueSheet(BuildContext context) {
                             color: isCurrent ? context.accent : null,
                           ),
                         ),
-                        subtitle: Text(Fmt.durationMs(video.durationMs)),
+                        subtitle: Text(
+                          item.isAudio && item.subtitle.isNotEmpty
+                              ? '${item.subtitle}  ·  ${Fmt.durationMs(item.durationMs)}'
+                              : Fmt.durationMs(item.durationMs),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         trailing: isCurrent
                             ? Icon(
-                                Icons.equalizer_rounded,
+                                AppIcons.equalizer_rounded,
                                 color: context.accent,
                                 size: 18,
                               )

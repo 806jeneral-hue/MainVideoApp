@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../common/app_sheet.dart';
@@ -11,6 +12,9 @@ import '../../data/services/pip_service.dart';
 import '../../state/settings_controller.dart';
 import '../player/widgets/playback_sheets.dart';
 import 'widgets/settings_tiles.dart';
+import '../common/glass_controls.dart';
+import '../common/glass_dialog.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Phase 5 — every player behaviour is a switch here instead of being forced
 /// on. The player reads these values, it never hard-codes them.
@@ -45,14 +49,14 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.play_circle_outline_rounded,
+                icon: AppIcons.play_circle_outline_rounded,
                 title: context.s.resumePlayback,
                 subtitle: context.s.resumePlaybackBody,
                 value: settings.resumePlayback,
                 onChanged: settings.setResumePlayback,
               ),
               SettingsSwitch(
-                icon: Icons.queue_play_next_rounded,
+                icon: AppIcons.queue_play_next_rounded,
                 title: context.s.autoplayNext,
                 subtitle: context.s.autoplayNextBody,
                 value: settings.autoplayNext,
@@ -64,14 +68,14 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.swipe_rounded,
+                icon: AppIcons.swipe_rounded,
                 title: context.s.gestureControls,
                 subtitle: context.s.gestureControlsBody,
                 value: settings.gesturesEnabled,
                 onChanged: settings.setGesturesEnabled,
               ),
               SettingsTile(
-                icon: Icons.forward_10_rounded,
+                icon: AppIcons.forward_10_rounded,
                 title: context.s.skipAmount,
                 subtitle: context.s.skipAmountBody,
                 trailing: Text(
@@ -83,22 +87,35 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
                 ),
                 onTap: () => _pickSeekSeconds(context, settings),
               ),
+              SettingsTile(
+                icon: AppIcons.swipe_rounded,
+                title: context.s.swipeSeekSpeed,
+                subtitle: context.s.swipeSeekSpeedBody,
+                trailing: Text(
+                  context.s.swipeSeekOption(settings.swipeSeekSeconds),
+                  style: TextStyle(
+                    color: context.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () => _pickSwipeSeek(context, settings),
+              ),
               SettingsSwitch(
-                icon: Icons.vibration_rounded,
+                icon: AppIcons.vibration_rounded,
                 title: context.s.haptics,
                 subtitle: context.s.hapticsBody,
                 value: settings.hapticsEnabled,
                 onChanged: settings.setHapticsEnabled,
               ),
               SettingsSwitch(
-                icon: Icons.screen_lock_portrait_rounded,
+                icon: AppIcons.screen_lock_portrait_rounded,
                 title: context.s.keepScreenOn,
                 subtitle: context.s.keepScreenOnBody,
                 value: settings.keepScreenOn,
                 onChanged: settings.setKeepScreenOn,
               ),
               SettingsSwitch(
-                icon: Icons.picture_in_picture_alt_rounded,
+                icon: AppIcons.picture_in_picture_alt_rounded,
                 title: context.s.pipTitle,
                 subtitle: _pipSupported == false
                     ? context.s.pipUnsupported
@@ -109,7 +126,7 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
                     : settings.setPipEnabled,
               ),
               SettingsSwitch(
-                icon: Icons.headphones_rounded,
+                icon: AppIcons.headphones_rounded,
                 title: context.s.backgroundPlayback,
                 subtitle: context.s.backgroundPlaybackBody,
                 value: settings.backgroundPlayback,
@@ -128,14 +145,14 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
           SettingsCard(
             children: [
               SettingsSwitch(
-                icon: Icons.repeat_one_on_rounded,
+                icon: AppIcons.repeat_one_on_rounded,
                 title: context.s.abRepeat,
                 subtitle: context.s.abRepeatBody,
                 value: settings.abRepeatEnabled,
                 onChanged: settings.setAbRepeatEnabled,
               ),
               SettingsSwitch(
-                icon: Icons.bedtime_outlined,
+                icon: AppIcons.bedtime_outlined,
                 title: context.s.sleepTimer,
                 subtitle: context.s.sleepTimerBody,
                 value: settings.sleepTimerEnabled,
@@ -147,7 +164,7 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
           SettingsCard(
             children: [
               SettingsTile(
-                icon: Icons.speed_rounded,
+                icon: AppIcons.speed_rounded,
                 title: context.s.defaultSpeed,
                 subtitle: context.s.defaultSpeedBody,
                 trailing: Text(
@@ -160,14 +177,14 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
                 onTap: () => _pickDefaultSpeed(context, settings),
               ),
               SettingsSwitch(
-                icon: Icons.shuffle_rounded,
+                icon: AppIcons.shuffle_rounded,
                 title: context.s.shuffleByDefault,
                 subtitle: context.s.shuffleByDefaultBody,
                 value: settings.shuffle,
                 onChanged: settings.setShuffle,
               ),
               SettingsTile(
-                icon: Icons.repeat_rounded,
+                icon: AppIcons.repeat_rounded,
                 title: context.s.defaultRepeatMode,
                 subtitle: context.s.defaultRepeatModeBody,
                 trailing: Text(
@@ -234,6 +251,81 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
     );
   }
 
+  /// How far one full-width swipe on the video moves it.
+  Future<void> _pickSwipeSeek(
+    BuildContext context,
+    SettingsController settings,
+  ) {
+    const options = [0, 30, 60, 120, 300, 600];
+
+    return showAppSheet<void>(
+      context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GlassSheetTitle(context.s.swipeSeekSpeed),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+              child: Text(
+                context.s.swipeSeekSpeedBody,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: context.muted),
+              ),
+            ),
+            for (final seconds in options)
+              GlassTile(
+                leading: Icon(
+                  seconds == 0
+                      ? AppIcons.auto_awesome_rounded
+                      : AppIcons.swipe_rounded,
+                ),
+                title: Text(context.s.swipeSeekOption(seconds)),
+                selected: settings.swipeSeekSeconds == seconds,
+                trailing: settings.swipeSeekSeconds == seconds
+                    ? const Icon(AppIcons.check_rounded)
+                    : null,
+                onTap: () {
+                  settings.setSwipeSeekSeconds(seconds);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            // Any other amount, typed in.
+            Builder(
+              builder: (_) {
+                final custom = !options.contains(settings.swipeSeekSeconds);
+                return GlassTile(
+                  leading: const Icon(AppIcons.edit_rounded),
+                  title: Text(context.s.swipeSeekCustom),
+                  subtitle: custom
+                      ? Text(
+                          context.s.swipeSeekOption(settings.swipeSeekSeconds),
+                        )
+                      : null,
+                  selected: custom,
+                  trailing: custom ? const Icon(AppIcons.check_rounded) : null,
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    final seconds = await _askSwipeSeekSeconds(
+                      context,
+                      initial: custom ? settings.swipeSeekSeconds : null,
+                    );
+                    if (seconds != null) {
+                      await settings.setSwipeSeekSeconds(seconds);
+                    }
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: AppTheme.space12),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickDefaultSpeed(
     BuildContext context,
     SettingsController settings,
@@ -291,16 +383,17 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final mode in LoopMode.values)
-              ListTile(
+              GlassTile(
                 leading: Icon(
                   mode == LoopMode.one
-                      ? Icons.repeat_one_rounded
-                      : Icons.repeat_rounded,
+                      ? AppIcons.repeat_one_rounded
+                      : AppIcons.repeat_rounded,
                   color: settings.loopMode == mode ? context.accent : null,
                 ),
                 title: Text(mode.label(context.s)),
+                selected: settings.loopMode == mode,
                 trailing: settings.loopMode == mode
-                    ? Icon(Icons.check_rounded, color: context.accent)
+                    ? Icon(AppIcons.check_rounded, color: context.accent)
                     : null,
                 onTap: () {
                   settings.setLoopMode(mode);
@@ -313,4 +406,63 @@ class _PlaybackSettingsPageState extends State<PlaybackSettingsPage> {
       ),
     );
   }
+}
+
+/// Asks for the seconds a full-width swipe should move, typed in.
+Future<int?> _askSwipeSeekSeconds(BuildContext context, {int? initial}) {
+  final controller = TextEditingController(text: initial?.toString() ?? '');
+  String? error;
+
+  return showDialog<int>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setState) {
+        final s = dialogContext.s;
+
+        void submit() {
+          final value = int.tryParse(controller.text.trim());
+          if (value == null || value < 1 || value > 3600) {
+            setState(() => error = s.swipeSeekInvalid);
+            return;
+          }
+          Navigator.pop(dialogContext, value);
+        }
+
+        return GlassDialog(
+          title: Text(s.swipeSeekCustom),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(s.swipeSeekCustomBody),
+              const SizedBox(height: AppTheme.space16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textInputAction: TextInputAction.done,
+                onChanged: (_) {
+                  if (error != null) setState(() => error = null);
+                },
+                onSubmitted: (_) => submit(),
+                decoration: InputDecoration(
+                  hintText: '15',
+                  suffixText: s.secondsUnit,
+                  errorText: error,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(s.cancel),
+            ),
+            FilledButton(onPressed: submit, child: Text(s.save)),
+          ],
+        );
+      },
+    ),
+  );
 }

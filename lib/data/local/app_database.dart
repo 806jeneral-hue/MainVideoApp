@@ -14,6 +14,9 @@ class AppDatabase {
   static const String playlistsBox = 'playlists';
   static const String collectionPrefsBox = 'collection_prefs';
   static const String recycleBinBox = 'recycle_bin';
+  static const String musicFavoritesBox = 'music_favorites';
+  static const String musicHistoryBox = 'music_history';
+  static const String musicPlaylistsBox = 'music_playlists';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -24,6 +27,9 @@ class AppDatabase {
       Hive.openBox<Map<dynamic, dynamic>>(playlistsBox),
       Hive.openBox<Map<dynamic, dynamic>>(collectionPrefsBox),
       Hive.openBox<Map<dynamic, dynamic>>(recycleBinBox),
+      Hive.openBox<int>(musicFavoritesBox),
+      Hive.openBox<int>(musicHistoryBox),
+      Hive.openBox<Map<dynamic, dynamic>>(musicPlaylistsBox),
     ]);
   }
 
@@ -37,6 +43,13 @@ class AppDatabase {
       Hive.box<Map<dynamic, dynamic>>(collectionPrefsBox);
   static Box<Map<dynamic, dynamic>> get recycleBin =>
       Hive.box<Map<dynamic, dynamic>>(recycleBinBox);
+
+  // Music keeps its own favourites, history and playlists, apart from video.
+  /// Song id to the time it was favourited, so the newest can come first.
+  static Box<int> get musicFavorites => Hive.box<int>(musicFavoritesBox);
+  static Box<int> get musicHistory => Hive.box<int>(musicHistoryBox);
+  static Box<Map<dynamic, dynamic>> get musicPlaylists =>
+      Hive.box<Map<dynamic, dynamic>>(musicPlaylistsBox);
 }
 
 /// Every settings key in one place so nothing is stringly-typed twice.
@@ -79,6 +92,7 @@ class SettingsKeys {
   static const repeatMode = 'repeatMode';
   static const keepScreenOn = 'keepScreenOn';
   static const seekSeconds = 'seekSeconds';
+  static const swipeSeekSeconds = 'swipeSeekSeconds';
   static const hapticsEnabled = 'hapticsEnabled';
 
   // Privacy and safety (phase 3 improvements)
@@ -90,4 +104,12 @@ class SettingsKeys {
   static const accentKey = 'accentKey';
   static const backgroundImage = 'backgroundImage';
   static const backgroundBlur = 'backgroundBlur';
+
+  // Music
+  static const musicSort = 'musicSort';
+  static const musicSortDescending = 'musicSortDescending';
+  static const musicAskedNotifications = 'musicAskedNotifications';
+
+  // Files
+  static const askedAllFilesAccess = 'askedAllFilesAccess';
 }

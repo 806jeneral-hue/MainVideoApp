@@ -5,6 +5,10 @@ import '../common/app_sheet.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/library_controller.dart';
+import '../common/glass_dialog.dart';
+import '../common/glass_controls.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Adds one or more videos to a playlist, creating one on the spot if needed
 /// (phase 3 — videos can come from anywhere, not just one folder).
@@ -50,11 +54,11 @@ class _AddToPlaylistSheet extends StatelessWidget {
                 ),
               ),
             ),
-            ListTile(
+            GlassTile(
               leading: const CircleAvatar(
                 backgroundColor: AppTheme.accent,
                 foregroundColor: Colors.white,
-                child: Icon(Icons.add_rounded),
+                child: Icon(AppIcons.add_rounded),
               ),
               title: Text(context.s.newPlaylist),
               contentPadding: const EdgeInsets.symmetric(horizontal: 18),
@@ -65,7 +69,7 @@ class _AddToPlaylistSheet extends StatelessWidget {
                 if (context.mounted) Navigator.pop(context);
               },
             ),
-            if (playlists.isNotEmpty) const Divider(height: 18),
+            if (playlists.isNotEmpty) const SizedBox(height: AppTheme.space8),
             Flexible(
               child: ListView.builder(
                 shrinkWrap: true,
@@ -77,7 +81,7 @@ class _AddToPlaylistSheet extends StatelessWidget {
                     (id) => playlist.videoIds.contains(id),
                   );
 
-                  return ListTile(
+                  return GlassTile(
                     leading: Container(
                       width: 42,
                       height: 42,
@@ -85,13 +89,13 @@ class _AddToPlaylistSheet extends StatelessWidget {
                         color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: AppTheme.thumbRadius,
                       ),
-                      child: const Icon(Icons.queue_music_rounded, size: 20),
+                      child: const Icon(AppIcons.queue_music_rounded, size: 20),
                     ),
                     title: Text(playlist.name),
                     subtitle: Text(context.s.videoCount(playlist.count)),
                     trailing: already
                         ? const Icon(
-                            Icons.check_rounded,
+                            AppIcons.check_rounded,
                             color: AppTheme.accent,
                           )
                         : null,
@@ -103,7 +107,7 @@ class _AddToPlaylistSheet extends StatelessWidget {
                             if (!context.mounted) return;
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
+                              glassSnackBar(
                                 content: Text(context.s.addedTo(playlist.name)),
                               ),
                             );
@@ -130,7 +134,7 @@ Future<String?> promptForPlaylistName(
 
   final name = await showDialog<String>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => GlassDialog(
       title: Text(title ?? context.s.newPlaylist),
       content: TextField(
         controller: controller,

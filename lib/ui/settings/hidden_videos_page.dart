@@ -7,6 +7,7 @@ import '../../core/utils/formatters.dart';
 import '../../state/library_controller.dart';
 import '../common/empty_state.dart';
 import '../common/video_thumbnail.dart';
+import '../../core/theme/app_icons.dart';
 
 /// The videos the user hid one by one, and a way to bring them back.
 class HiddenVideosPage extends StatelessWidget {
@@ -34,7 +35,7 @@ class HiddenVideosPage extends StatelessWidget {
       ),
       body: videos.isEmpty
           ? EmptyState(
-              icon: Icons.visibility_off_outlined,
+              icon: AppIcons.visibility_off_outlined,
               title: context.s.noHiddenVideos,
               message: context.s.noHiddenVideosBody,
             )
@@ -79,7 +80,7 @@ class HiddenVideosPage extends StatelessWidget {
                           ),
                           IconButton(
                             tooltip: context.s.unhideVideo,
-                            icon: const Icon(Icons.visibility_rounded),
+                            icon: const Icon(AppIcons.visibility_rounded),
                             color: context.accent,
                             onPressed: () =>
                                 library.toggleVideoHidden(video.id),

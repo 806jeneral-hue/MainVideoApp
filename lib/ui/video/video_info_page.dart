@@ -6,6 +6,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/video.dart';
 import '../common/video_thumbnail.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Everything known about one file (phase 6).
 class VideoInfoPage extends StatelessWidget {
@@ -155,12 +157,12 @@ class _PathCard extends StatelessWidget {
             ),
             IconButton(
               tooltip: context.s.copyPath,
-              icon: const Icon(Icons.copy_rounded, size: 18),
+              icon: const Icon(AppIcons.copy_rounded, size: 18),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: path));
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('Path copied')));
+                ).showSnackBar(glassSnackBar(content: Text('Path copied')));
               },
             ),
           ],

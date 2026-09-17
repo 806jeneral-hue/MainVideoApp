@@ -44,6 +44,7 @@ abstract class Strings {
   String get sort;
   String get gridView;
   String get listView;
+  String get compactView;
   String get filterAll;
   String get filterRecentlyAdded;
   String get filterRecentlyPlayed;
@@ -340,6 +341,8 @@ class StringsEn extends Strings {
   String get gridView => 'Grid view';
   @override
   String get listView => 'List view';
+  @override
+  String get compactView => 'Compact list';
   @override
   String get filterAll => 'All';
   @override
@@ -874,6 +877,8 @@ class StringsAr extends Strings {
   String get gridView => 'عرض شبكي';
   @override
   String get listView => 'عرض قائمة';
+  @override
+  String get compactView => 'قائمة مصغّرة';
   @override
   String get filterAll => 'الكل';
   @override

@@ -5,6 +5,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/library_controller.dart';
 import '../common/empty_state.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Phase 3 — which real device folders are scanned, and which are hidden.
 ///
@@ -33,7 +34,7 @@ class ScanFoldersPage extends StatelessWidget {
       ),
       body: folders.isEmpty
           ? EmptyState(
-              icon: Icons.folder_off_outlined,
+              icon: AppIcons.folder_off_outlined,
               title: context.s.noFoldersFound,
               message: context.s.noFoldersFoundBody,
             )
@@ -172,8 +173,8 @@ class _FolderCheck extends StatelessWidget {
                 tooltip: hidden ? context.s.unhideFolder : context.s.hideFolder,
                 icon: Icon(
                   hidden
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_outlined,
+                      ? AppIcons.visibility_off_rounded
+                      : AppIcons.visibility_outlined,
                   size: 20,
                   color: hidden ? context.accent : muted,
                 ),

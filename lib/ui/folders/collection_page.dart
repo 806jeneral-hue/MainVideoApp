@@ -20,9 +20,13 @@ import '../common/selection.dart';
 import '../common/video_slivers.dart';
 import '../home/widgets/sort_sheet.dart';
 import '../player/mini_player.dart';
+import '../settings/settings_button.dart';
 import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'video_picker_page.dart';
+import '../common/glass_controls.dart';
+import '../../core/theme/app_icons.dart';
+import '../common/app_icon.dart';
 
 /// Which kind of list a [CollectionPage] is showing.
 enum CollectionKind { folder, playlist, favorites }
@@ -115,12 +119,20 @@ class _CollectionPageState extends State<CollectionPage>
               onSelectAll: () => selectAll(videos),
             )
           : AppBar(
+              // As the Favorites tab it carries the settings gear like the
+              // other tabs; opened on top of them it keeps its back button.
+              leading: TabScroll.isTab(context)
+                  ? SettingsButton.leading()
+                  : null,
+              leadingWidth: TabScroll.isTab(context)
+                  ? SettingsButton.leadingWidth
+                  : null,
               title: Text(title),
               actions: [
                 if (widget.kind == CollectionKind.playlist && playlist != null)
                   HeaderAction(
                     tooltip: context.s.addVideos,
-                    icon: const Icon(Icons.playlist_add_rounded),
+                    icon: const Icon(AppIcons.playlist_add_rounded),
                     onPressed: () async {
                       final picked = await Navigator.of(context)
                           .push<List<String>>(
@@ -139,19 +151,21 @@ class _CollectionPageState extends State<CollectionPage>
                     },
                   ),
                 HeaderAction(
-                  tooltip: library.viewMode == ViewMode.list
-                      ? context.s.gridView
-                      : context.s.listView,
-                  icon: Icon(
-                    library.viewMode == ViewMode.list
-                        ? Icons.grid_view_rounded
-                        : Icons.view_list_rounded,
-                  ),
+                  tooltip: switch (library.nextViewMode) {
+                    ViewMode.list => context.s.listView,
+                    ViewMode.compact => context.s.compactView,
+                    ViewMode.grid => context.s.gridView,
+                  },
+                  icon: Icon(switch (library.nextViewMode) {
+                    ViewMode.list => AppIcons.view_agenda_rounded,
+                    ViewMode.compact => AppIcons.view_list_rounded,
+                    ViewMode.grid => AppIcons.grid_view_rounded,
+                  }),
                   onPressed: library.toggleViewMode,
                 ),
                 HeaderAction(
                   tooltip: context.s.sort,
-                  icon: const Icon(Icons.swap_vert_rounded),
+                  icon: const AppIcon(AppIcons.swap_vert_rounded),
                   onPressed: () => showSortSheet(context, _key),
                 ),
                 const SizedBox(width: 16),
@@ -217,8 +231,8 @@ class _CollectionPageState extends State<CollectionPage>
                                 ),
                                 onPressed: () =>
                                     _askPlayMode(context, videos, title),
-                                icon: const Icon(
-                                  Icons.play_arrow_rounded,
+                                icon: const AppIcon(
+                                  AppIcons.play_arrow_rounded,
                                   size: 20,
                                 ),
                                 label: Text(context.s.playAll),
@@ -315,8 +329,8 @@ class _CollectionPageState extends State<CollectionPage>
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.playlist_play_rounded),
+          GlassTile(
+            leading: const Icon(AppIcons.playlist_play_rounded),
             title: Text(context.s.playInOrder),
             subtitle: Text(context.s.videoCount(videos.length)),
             onTap: () {
@@ -324,8 +338,8 @@ class _CollectionPageState extends State<CollectionPage>
               _playAll(context, videos, title, shuffled: false);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.shuffle_rounded),
+          GlassTile(
+            leading: const Icon(AppIcons.shuffle_rounded),
             title: Text(context.s.playShuffled),
             subtitle: Text(context.s.videoCount(videos.length)),
             onTap: () {
@@ -358,17 +372,17 @@ class _CollectionPageState extends State<CollectionPage>
     final s = context.s;
     return switch (kind) {
       CollectionKind.favorites => EmptyState(
-        icon: Icons.favorite_border_rounded,
+        icon: AppIcons.favorite_border_rounded,
         title: s.noFavorites,
         message: s.noFavoritesBody,
       ),
       CollectionKind.playlist => EmptyState(
-        icon: Icons.queue_music_rounded,
+        icon: AppIcons.queue_music_rounded,
         title: s.emptyPlaylist,
         message: s.emptyPlaylistBody,
       ),
       CollectionKind.folder => EmptyState(
-        icon: Icons.folder_off_outlined,
+        icon: AppIcons.folder_off_outlined,
         title: s.folderEmpty,
         message: s.folderEmptyBody,
       ),

@@ -11,6 +11,7 @@ import '../../../state/playback_controller.dart';
 import '../player_page.dart';
 import '../../common/glass.dart';
 import 'playback_sheets.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// The control overlay: a glass top bar, the transport in the middle, the
 /// scrubber, and a floating panel holding the six playback toggles.
@@ -100,9 +101,9 @@ class _TopBar extends StatelessWidget {
         // Chevron down rather than a cross: this minimises into the mini
         // player, it does not stop the video.
         GlassCircleButton(
-          icon: Icons.keyboard_arrow_down_rounded,
+          icon: AppIcons.keyboard_arrow_down_rounded,
           size: 46,
-          iconSize: 28,
+          iconSize: 30,
           tooltip: context.s.minimise,
           // Shrinks onto the mini player the same way the swipe does.
           onTap: () => context.read<PlayerMorph>().release(minimise: true),
@@ -179,18 +180,18 @@ class _TopActions extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           GlassBarIcon(
-            icon: Icons.playlist_play_rounded,
+            icon: AppIcons.playlist_play_rounded,
             tooltip: context.s.playingQueue,
             onTap: () => showQueueSheet(context),
           ),
           GlassBarIcon(
             icon: switch (fit) {
-              VideoFit.fit => Icons.fit_screen_rounded,
-              VideoFit.fill => Icons.crop_free_rounded,
-              VideoFit.stretch => Icons.open_in_full_rounded,
-              VideoFit.ratio16x9 => Icons.crop_16_9_rounded,
-              VideoFit.ratio4x3 => Icons.crop_din_rounded,
-              VideoFit.original => Icons.photo_size_select_actual_outlined,
+              VideoFit.fit => AppIcons.fit_screen_rounded,
+              VideoFit.fill => AppIcons.crop_free_rounded,
+              VideoFit.stretch => AppIcons.open_in_full_rounded,
+              VideoFit.ratio16x9 => AppIcons.crop_16_9_rounded,
+              VideoFit.ratio4x3 => AppIcons.crop_din_rounded,
+              VideoFit.original => AppIcons.photo_size_select_actual_outlined,
             },
             tooltip: '${context.s.displayMode} · ${fit.label(context.s)}',
             active: fit != VideoFit.fit,
@@ -203,9 +204,9 @@ class _TopActions extends StatelessWidget {
           ),
           GlassBarIcon(
             icon: switch (forced) {
-              null => Icons.screen_rotation_rounded,
-              Orientation.landscape => Icons.stay_current_landscape_rounded,
-              Orientation.portrait => Icons.stay_current_portrait_rounded,
+              null => AppIcons.screen_rotation_rounded,
+              Orientation.landscape => AppIcons.stay_current_landscape_rounded,
+              Orientation.portrait => AppIcons.stay_current_portrait_rounded,
             },
             tooltip: switch (forced) {
               null => context.s.rotationAuto,
@@ -220,12 +221,12 @@ class _TopActions extends StatelessWidget {
           ),
           if (pipEnabled)
             GlassBarIcon(
-              icon: Icons.picture_in_picture_alt_rounded,
+              icon: AppIcons.picture_in_picture_alt_rounded,
               tooltip: context.s.pictureInPicture,
               onTap: playback.enterPip,
             ),
           GlassBarIcon(
-            icon: Icons.more_vert_rounded,
+            icon: AppIcons.more_vert_rounded,
             tooltip: context.s.more,
             active: optionsActive,
             onTap: () => showPlayerOptionsSheet(context),
@@ -255,7 +256,7 @@ class _SleepChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bedtime_rounded, size: 14, color: context.accent),
+            Icon(AppIcons.bedtime_rounded, size: 14, color: context.accent),
             const SizedBox(width: 5),
             Text(
               Fmt.duration(remaining),
@@ -289,7 +290,7 @@ class _Transport extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           GlassCircleButton(
-            icon: Icons.skip_previous_rounded,
+            icon: AppIcons.skip_previous_rounded,
             size: 60,
             iconSize: 32,
             tooltip: context.s.previous,
@@ -300,7 +301,7 @@ class _Transport extends StatelessWidget {
           const _PlayPauseButton(),
           const SizedBox(width: AppTheme.space32),
           GlassCircleButton(
-            icon: Icons.skip_next_rounded,
+            icon: AppIcons.skip_next_rounded,
             size: 60,
             iconSize: 32,
             tooltip: context.s.next,
@@ -326,7 +327,7 @@ class _PlayPauseButton extends StatelessWidget {
 
     if (controller == null) {
       return GlassCircleButton(
-        icon: Icons.play_arrow_rounded,
+        icon: AppIcons.play_arrow_rounded,
         size: 84,
         tooltip: context.s.play,
         onTap: null,
@@ -347,8 +348,8 @@ class _PlayPauseButton extends StatelessWidget {
         final buffering = value.isBuffering && !value.isPlaying;
         return GlassCircleButton(
           icon: value.isPlaying
-              ? Icons.pause_rounded
-              : Icons.play_arrow_rounded,
+              ? AppIcons.pause_rounded
+              : AppIcons.play_arrow_rounded,
           size: 84,
           iconSize: 46,
           tooltip: value.isPlaying ? context.s.pause : context.s.play,
@@ -542,7 +543,7 @@ class _LockedOverlay extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsetsDirectional.only(start: AppTheme.pageMargin),
           child: GlassCircleButton(
-            icon: Icons.lock_rounded,
+            icon: AppIcons.lock_rounded,
             size: 52,
             iconSize: 23,
             tooltip: context.s.lock,

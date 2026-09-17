@@ -5,7 +5,6 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/collection_prefs.dart';
-import '../../data/models/enums.dart';
 import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
 import '../../state/settings_controller.dart';
@@ -14,6 +13,7 @@ import '../common/bottom_fade.dart';
 import '../common/drag_select.dart';
 import '../common/fast_scroller.dart';
 import '../common/glass.dart';
+import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
 import '../common/selection.dart';
 import '../common/video_slivers.dart';
@@ -21,6 +21,7 @@ import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'widgets/library_status_view.dart';
 import 'widgets/sort_sheet.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Quick filters standing in for the Recently Added / Recently Played
 /// sections of phase 6.
@@ -125,15 +126,18 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                 slivers: [
                   if (!selectionMode)
                     SliverToBoxAdapter(
-                      child: _Header(
+                      child: TabHeader(
+                        title: context.s.appTitle,
                         searching: _searching,
                         searchController: _searchController,
+                        searchHint: context.s.searchVideos,
                         onQueryChanged: library.setQuery,
                         onToggleSearch: () => _toggleSearch(library),
-                        onSort: () =>
-                            showSortSheet(context, CollectionKey.home),
-                        viewMode: library.viewMode,
-                        onToggleView: library.toggleViewMode,
+                        onSortAndLayout: () => showSortSheet(
+                          context,
+                          CollectionKey.home,
+                          showViewMode: true,
+                        ),
                       ),
                     ),
                   SliverToBoxAdapter(
@@ -143,31 +147,8 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                       onChanged: (value) => setState(() => _filter = value),
                     ),
                   ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppTheme.pageMargin + 4,
-                        4,
-                        AppTheme.pageMargin + 4,
-                        12,
-                      ),
-                      child: Text(
-                        _subtitleFor(
-                          context,
-                          filter,
-                          videos.length,
-                          library,
-                          prefs,
-                        ),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          // Stronger than muted so it stays readable over a background picture.
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.66),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: AppTheme.space12),
                   ),
                   if (videos.isEmpty)
                     SliverFillRemaining(
@@ -250,28 +231,6 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
     HomeFilter.recentlyPlayed => context.s.filterRecentlyPlayed,
   };
 
-  String _subtitleFor(
-    BuildContext context,
-    HomeFilter filter,
-    int count,
-    LibraryController library,
-    CollectionPrefs prefs,
-  ) {
-    final s = context.s;
-    if (library.isScanning) return s.stillScanning(s.videoCount(count));
-    if (library.query.isNotEmpty) {
-      return s.matchingQuery(s.videoCount(count), library.query);
-    }
-    return switch (filter) {
-      HomeFilter.all => s.sortedBy(
-        s.videoCount(count),
-        prefs.sortField.label(s).toLowerCase(),
-      ),
-      HomeFilter.recentlyAdded => s.newestOnDevice,
-      HomeFilter.recentlyPlayed => s.pickUpWhereYouLeftOff,
-    };
-  }
-
   Widget _emptyFor(
     BuildContext context,
     HomeFilter filter,
@@ -280,161 +239,23 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
     final s = context.s;
     if (library.query.isNotEmpty) {
       return EmptyState(
-        icon: Icons.search_off_rounded,
+        icon: AppIcons.search_off_rounded,
         title: s.nothingFound,
         message: s.noVideoMatches(library.query),
       );
     }
     return switch (filter) {
       HomeFilter.recentlyPlayed => EmptyState(
-        icon: Icons.history_rounded,
+        icon: AppIcons.history_rounded,
         title: s.nothingWatchedYet,
         message: s.nothingWatchedYetBody,
       ),
       _ => EmptyState(
-        icon: Icons.movie_outlined,
+        icon: AppIcons.movie_outlined,
         title: s.noVideosFound,
         message: s.noVideosFoundBody,
       ),
     };
-  }
-}
-
-/// Clean media-app header: floating glass actions on one row, the large
-/// screen title under them. Search grows out of the same spot as the title,
-/// so opening it feels like the header changing shape rather than a new bar.
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.searching,
-    required this.searchController,
-    required this.onQueryChanged,
-    required this.onToggleSearch,
-    required this.onSort,
-    required this.viewMode,
-    required this.onToggleView,
-  });
-
-  final bool searching;
-  final TextEditingController searchController;
-  final ValueChanged<String> onQueryChanged;
-  final VoidCallback onToggleSearch;
-  final VoidCallback onSort;
-  final ViewMode viewMode;
-  final VoidCallback onToggleView;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.s;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppTheme.pageMargin,
-        MediaQuery.paddingOf(context).top + AppTheme.space12,
-        AppTheme.pageMargin,
-        AppTheme.space16,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              GlassIconButton(
-                tooltip: viewMode == ViewMode.list ? s.gridView : s.listView,
-                icon: viewMode == ViewMode.list
-                    ? Icons.grid_view_rounded
-                    : Icons.view_agenda_rounded,
-                onPressed: onToggleView,
-              ),
-              // The app name sits in the gap between the buttons, on the same
-              // line, so it costs no height.
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.space12,
-                  ),
-                  child: Text(
-                    s.appTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              GlassIconButton(
-                tooltip: s.sort,
-                icon: Icons.swap_vert_rounded,
-                onPressed: onSort,
-              ),
-              const SizedBox(width: AppTheme.space12),
-              GlassIconButton(
-                tooltip: searching ? s.closeSearch : s.search,
-                icon: searching ? Icons.close_rounded : Icons.search_rounded,
-                selected: searching,
-                onPressed: onToggleSearch,
-              ),
-            ],
-          ),
-          // Search opens here, under the buttons, only while it is in use.
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: searching
-                ? Padding(
-                    padding: const EdgeInsets.only(top: AppTheme.space16),
-                    child: _SearchField(
-                      controller: searchController,
-                      onChanged: onQueryChanged,
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Glass search field. Wired to the same query the library already filters
-/// by — this only changes how it looks.
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onChanged});
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GlassSurface(
-      radius: AppTheme.pillRadius,
-      floating: true,
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-        cursorColor: theme.colorScheme.primary,
-        decoration: InputDecoration(
-          hintText: context.s.searchVideos,
-          filled: false,
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            size: 22,
-            color: theme.colorScheme.primary,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-        ),
-      ),
-    );
   }
 }
 
@@ -525,7 +346,7 @@ class _FilterPill extends StatelessWidget {
                   children: [
                     if (selected) ...[
                       Icon(
-                        Icons.check_rounded,
+                        AppIcons.check_rounded,
                         size: 18,
                         color: theme.colorScheme.primary,
                       ),

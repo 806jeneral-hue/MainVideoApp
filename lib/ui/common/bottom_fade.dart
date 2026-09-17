@@ -1,122 +1,67 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_theme.dart';
+/// Room left under a list's last item, so it can scroll clear of the bars and
+/// be read in full above them.
+const double kFadeBand = 24;
 
-/// How tall the dissolve is, measured upwards from the top edge of the
-/// navigation bar.
-const double kFadeBand = 90;
-
-/// Dissolves the bottom of a list so videos are already gone by the time they
-/// reach the navigation bar.
+/// Lets a list run on behind the floating bottom bars and dissolve there.
 ///
-/// The list still owns the whole screen — it scrolls on behind the bar rather
-/// than stopping short of it — but a video is fully transparent from the top
-/// edge of the bar downwards, and fades in over [kFadeBand] above that. So a
-/// video only ever becomes visible above the bar, never beside or behind it.
-///
-/// The faded region is clipped to the same rounded corners the cards and
-/// buttons use, so its edge belongs to the same shape language.
+/// The navigation bar and mini player are see-through glass, so what scrolls
+/// behind them shows softly through their blur, the way frosted glass does.
+/// Across the height of the bars the list fades out gradually — it is still
+/// there just under their top edge and gone by the bottom of the screen — so
+/// the bars never sit on a hard cut-off.
 class BottomFade extends StatelessWidget {
-  const BottomFade({
-    super.key,
-    required this.child,
-    this.fadeBand = kFadeBand,
-    this.cornerRadius = AppTheme.radiusSheet,
-  });
+  const BottomFade({super.key, required this.child});
 
   final Widget child;
-  final double fadeBand;
-  final double cornerRadius;
 
   @override
   Widget build(BuildContext context) {
     // With `extendBody: true` the Scaffold reports the height of the bottom
     // bars here, so this tracks the mini player appearing and disappearing.
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    if (bottomInset <= 0) return child;
 
     return RepaintBoundary(
-      child: ClipPath(
-        clipper: _FadeAreaClipper(
-          bottomInset: bottomInset,
-          radius: cornerRadius,
-        ),
-        child: ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (bounds) {
-            final height = bounds.height;
-            if (height <= 0) {
-              return const LinearGradient(
-                colors: [Colors.white, Colors.white],
-              ).createShader(bounds);
-            }
-
-            // Fully transparent from the top of the bar down.
-            final end = ((height - bottomInset) / height).clamp(0.0, 1.0);
-            final start = ((height - bottomInset - fadeBand) / height).clamp(
-              0.0,
-              end,
-            );
-            final span = end - start;
-
-            // Eased rather than linear: a straight ramp still reads as a band
-            // with edges, these stops make the dissolve feel continuous.
-            return LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: const [
-                Colors.white,
-                Colors.white,
-                Color(0xBFFFFFFF),
-                Color(0x4DFFFFFF),
-                Colors.transparent,
-                Colors.transparent,
-              ],
-              stops: [
-                0,
-                start,
-                start + span * 0.42,
-                start + span * 0.74,
-                end,
-                1,
-              ],
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) {
+          final height = bounds.height;
+          if (height <= 0) {
+            return const LinearGradient(
+              colors: [Colors.white, Colors.white],
             ).createShader(bounds);
-          },
-          child: child,
-        ),
+          }
+
+          // Full strength until the top of the bars, then an eased dissolve
+          // down to nothing at the bottom edge of the screen.
+          final start = ((height - bottomInset) / height).clamp(0.0, 1.0);
+          final span = 1 - start;
+
+          return LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: const [
+              Colors.white,
+              Colors.white,
+              Color(0xB3FFFFFF),
+              Color(0x40FFFFFF),
+              Colors.transparent,
+            ],
+            stops: [0, start, start + span * 0.35, start + span * 0.7, 1],
+          ).createShader(bounds);
+        },
+        child: child,
       ),
     );
   }
-}
-
-/// Rounds off the bottom of the visible area at the top edge of the bar,
-/// rather than at the bottom of the screen.
-class _FadeAreaClipper extends CustomClipper<Path> {
-  const _FadeAreaClipper({required this.bottomInset, required this.radius});
-
-  final double bottomInset;
-  final double radius;
-
-  @override
-  Path getClip(Size size) {
-    final bottom = (size.height - bottomInset).clamp(0.0, size.height);
-    return Path()..addRRect(
-      RRect.fromRectAndCorners(
-        Rect.fromLTRB(0, 0, size.width, bottom),
-        bottomLeft: Radius.circular(radius),
-        bottomRight: Radius.circular(radius),
-      ),
-    );
-  }
-
-  @override
-  bool shouldReclip(_FadeAreaClipper old) =>
-      old.bottomInset != bottomInset || old.radius != radius;
 }
 
 /// Bottom padding that lets the last item scroll all the way clear of the
-/// dissolve, so it can be seen at full opacity above the bar.
+/// bars, so it can be seen at full strength above them.
 ///
 /// This is scroll extent, not empty space on screen: content passes behind the
-/// navigation bar rather than stopping above it.
+/// bars rather than stopping above them.
 double listBottomInset(BuildContext context, {double extra = kFadeBand}) =>
     MediaQuery.paddingOf(context).bottom + extra;

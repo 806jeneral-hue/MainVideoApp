@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../models/video.dart';
+import 'media_index.dart';
 
 /// Reads every video on the device through MediaStore (phase 1).
 ///
@@ -38,13 +39,16 @@ class MediaScanner {
     final total = await all.assetCountAsync;
     if (total == 0) return const [];
 
+    final added = await MediaIndex.videoDatesAdded();
     final videos = <Video>[];
     var done = 0;
 
     for (var start = 0; start < total; start += _batchSize) {
       final end = (start + _batchSize).clamp(0, total);
       final assets = await all.getAssetListRange(start: start, end: end);
-      final resolved = await Future.wait(assets.map(_toVideo));
+      final resolved = await Future.wait(
+        assets.map((asset) => _toVideo(asset, added)),
+      );
 
       final batch = <Video>[];
       for (final v in resolved) {
@@ -59,7 +63,13 @@ class MediaScanner {
     return videos;
   }
 
-  static Future<Video?> _toVideo(AssetEntity asset) async {
+  /// [added] holds when each file arrived on the device; the asset's own
+  /// creation date is when it was filmed, which is wrong for anything copied,
+  /// downloaded or unzipped later.
+  static Future<Video?> _toVideo(
+    AssetEntity asset,
+    Map<String, DateTime> added,
+  ) async {
     try {
       final file = await asset.originFile ?? await asset.file;
       if (file == null) return null;
@@ -80,7 +90,7 @@ class MediaScanner {
         title: asset.title?.isNotEmpty == true ? asset.title! : name,
         durationMs: asset.duration * 1000,
         sizeBytes: size,
-        dateAdded: asset.createDateTime,
+        dateAdded: added[asset.id] ?? asset.createDateTime,
         dateModified: asset.modifiedDateTime,
         width: asset.width,
         height: asset.height,
@@ -119,11 +129,14 @@ class MediaScanner {
     final total = await album.assetCountAsync;
     if (total == 0) return const [];
 
+    final added = await MediaIndex.videoDatesAdded();
     final videos = <Video>[];
     for (var start = 0; start < total; start += _batchSize) {
       final end = (start + _batchSize).clamp(0, total);
       final assets = await album.getAssetListRange(start: start, end: end);
-      final resolved = await Future.wait(assets.map(_toVideo));
+      final resolved = await Future.wait(
+        assets.map((asset) => _toVideo(asset, added)),
+      );
       for (final v in resolved) {
         if (v != null) videos.add(v);
       }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Draggable handle down the side of a long list.
 ///
@@ -156,18 +157,17 @@ class _FastScrollerState extends State<FastScroller> {
                           child: Container(
                             width: 20,
                             height: FastScroller._thumbHeight,
-                            decoration: BoxDecoration(
-                              color: _dragging
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.surface,
-                              borderRadius: AppTheme.pillRadius,
-                              boxShadow: context.floatingShadow,
+                            // A small glass capsule, tinted while it is held.
+                            decoration: context.glassSurface(
+                              radius: AppTheme.pillRadius,
+                              floating: true,
+                              selected: _dragging,
                             ),
                             child: Icon(
-                              Icons.drag_handle_rounded,
+                              AppIcons.drag_handle_rounded,
                               size: 15,
                               color: _dragging
-                                  ? theme.colorScheme.onPrimary
+                                  ? theme.colorScheme.primary
                                   : context.muted,
                             ),
                           ),

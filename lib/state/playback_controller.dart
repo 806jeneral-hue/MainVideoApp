@@ -14,11 +14,15 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../core/utils/formatters.dart';
 import '../data/models/enums.dart';
+import '../data/models/playable.dart';
+import '../data/models/song.dart';
 import '../data/models/video.dart';
+import '../data/services/album_art_service.dart';
 import '../data/services/background_audio_service.dart';
 import '../data/services/pip_service.dart';
 import '../data/services/thumbnail_service.dart';
 import 'library_controller.dart';
+import 'music_controller.dart';
 import 'settings_controller.dart';
 
 /// What the on-screen indicator is currently showing during a gesture.
@@ -55,15 +59,18 @@ class PlaybackController extends ChangeNotifier {
   PlaybackController({
     required SettingsController settings,
     required LibraryController library,
+    required MusicController music,
   }) : _settings = settings,
-       _library = library;
+       _library = library,
+       _music = music;
 
   final SettingsController _settings;
   final LibraryController _library;
+  final MusicController _music;
 
   VideoPlayerController? _vp;
 
-  List<Video> _queue = const [];
+  List<Playable> _queue = const [];
   int _index = 0;
   String _queueTitle = '';
 
@@ -131,11 +138,14 @@ class PlaybackController extends ChangeNotifier {
   bool get hasSession => _hasSession && _queue.isNotEmpty;
   bool get isFullscreen => _fullscreen;
 
-  Video? get currentOrNull =>
+  Playable? get currentOrNull =>
       _queue.isEmpty ? null : _queue[_index.clamp(0, _queue.length - 1)];
-  Video get current => _queue[_index];
+  Playable get current => _queue[_index];
 
-  List<Video> get queue => _queue;
+  /// Whether the session is music rather than video.
+  bool get isAudio => currentOrNull?.isAudio ?? false;
+
+  List<Playable> get queue => _queue;
   String get queueTitle => _queueTitle;
   int get index => _index;
   bool get ready => _ready;
@@ -186,14 +196,14 @@ class PlaybackController extends ChangeNotifier {
   /// Starts (or replaces) the playback session. Any video already playing is
   /// stopped first — there is only ever one player.
   Future<void> open({
-    required List<Video> queue,
+    required List<Playable> queue,
     required int startIndex,
     String queueTitle = '',
     bool? shuffle,
   }) async {
     if (queue.isEmpty) return;
 
-    _queue = List<Video>.from(queue);
+    _queue = List<Playable>.from(queue);
     _queueTitle = queueTitle;
     _hasSession = true;
     _index = startIndex.clamp(0, _queue.length - 1);
@@ -236,49 +246,91 @@ class PlaybackController extends ChangeNotifier {
   /// Keeps the foreground service in step with what is playing, so the
   /// notification is right and Android does not reclaim the process mid-video.
   Future<void> _syncBackgroundService() async {
-    if (!_settings.backgroundPlayback || !hasSession) {
+    // Music always gets the media card and keeps playing in the background —
+    // that is what a music player is for. Video follows its setting.
+    if (!_backgroundAllowed || !hasSession) {
       _artworkVideoId = null;
       await BackgroundAudioService.stop();
       return;
     }
 
-    final video = currentOrNull;
-    if (video == null) return;
+    final item = currentOrNull;
+    if (item == null) return;
 
     // Recorded before any await, so player ticks arriving meanwhile do not
     // queue the same update again.
     final playing = isPlaying;
     _notifiedPlaying = playing;
-    _notifiedFavorite = _library.isFavorite(video.id);
+    _notifiedFavorite = _isFavorite(item);
     _notifiedPosition = position;
     _notifiedAt = DateTime.now();
 
-    // The thumbnail only travels when the video changes.
+    // The picture only travels when the item changes.
     Uint8List? artwork;
-    if (_artworkVideoId != video.id || !BackgroundAudioService.isRunning) {
-      _artworkVideoId = video.id;
-      artwork =
-          await ThumbnailService.load(video.assetId, width: 512, height: 288) ??
-          Uint8List(0);
-      // Moved on to another video while the picture loaded; that one syncs.
-      if (currentOrNull?.id != video.id) return;
+    if (_artworkVideoId != item.id || !BackgroundAudioService.isRunning) {
+      _artworkVideoId = item.id;
+      artwork = await _artworkFor(item) ?? Uint8List(0);
+      // Moved on to another item while the picture loaded; that one syncs.
+      if (currentOrNull?.id != item.id) return;
     }
 
     await BackgroundAudioService.show(
       NowPlaying(
-        title: video.displayName,
-        subtitle: _queueTitle.isEmpty ? video.folderName : _queueTitle,
+        title: item.displayName,
+        subtitle: switch (item) {
+          Song(:final artist, :final album) =>
+            artist.isNotEmpty ? artist : album,
+          _ => _queueTitle.isEmpty ? item.subtitle : _queueTitle,
+        },
         playing: isPlaying,
         position: position,
         duration: duration > Duration.zero
             ? duration
-            : Duration(milliseconds: video.durationMs),
+            : Duration(milliseconds: item.durationMs),
         speed: _speed,
         favorite: _notifiedFavorite,
         color: _settings.accent.onLight,
         artwork: artwork,
       ),
     );
+  }
+
+  bool get _backgroundAllowed => _settings.backgroundPlayback || isAudio;
+
+  Future<Uint8List?> _artworkFor(Playable item) => switch (item) {
+    Song() => AlbumArtService.load(item, size: 512),
+    Video(:final assetId) => ThumbnailService.load(
+      assetId,
+      width: 512,
+      height: 288,
+    ),
+    _ => Future.value(null),
+  };
+
+  bool _isFavorite(Playable item) =>
+      item.isAudio ? _music.isFavorite(item.id) : _library.isFavorite(item.id);
+
+  Future<void> _toggleFavorite(Playable item) async {
+    if (item.isAudio) {
+      await _music.toggleFavorite(item.id);
+    } else {
+      await _library.toggleFavorite(item.id);
+    }
+  }
+
+  /// Favourites the playing item in the list it belongs to — songs and
+  /// videos keep separate favourites.
+  Future<void> toggleCurrentFavorite() async {
+    final item = currentOrNull;
+    if (item == null) return;
+    await _toggleFavorite(item);
+    unawaited(_syncBackgroundService());
+    notifyListeners();
+  }
+
+  bool get currentIsFavorite {
+    final item = currentOrNull;
+    return item != null && _isFavorite(item);
   }
 
   // What the media card was last told, so it is only updated on a change.
@@ -293,11 +345,11 @@ class PlaybackController extends ChangeNotifier {
   /// from the library — not only when a button in the app was pressed.
   void _keepMediaCardInStep(VideoPlayerValue value) {
     if (!BackgroundAudioService.isRunning) return;
-    final video = currentOrNull;
-    if (video == null) return;
+    final item = currentOrNull;
+    if (item == null) return;
 
     if (value.isPlaying != _notifiedPlaying ||
-        _library.isFavorite(video.id) != _notifiedFavorite) {
+        _isFavorite(item) != _notifiedFavorite) {
       unawaited(_syncBackgroundService());
       return;
     }
@@ -330,12 +382,7 @@ class PlaybackController extends ChangeNotifier {
         case 'previous':
           previous();
         case 'favorite':
-          final video = currentOrNull;
-          if (video != null) {
-            _library
-                .toggleFavorite(video.id)
-                .then((_) => _syncBackgroundService());
-          }
+          toggleCurrentFavorite();
         case 'stop':
           stop();
         default:
@@ -500,9 +547,9 @@ class PlaybackController extends ChangeNotifier {
 
     await old?.dispose();
 
-    final video = _queue[_index];
+    final item = _queue[_index];
     final controller = VideoPlayerController.file(
-      File(video.path),
+      File(item.path),
       // Without this the plugin pauses the video by itself the moment the
       // app goes to the background, whatever the setting says. Whether to
       // keep playing is decided in [handleAppPaused] instead.
@@ -534,9 +581,11 @@ class PlaybackController extends ChangeNotifier {
     await controller.setPlaybackSpeed(_speed);
     await controller.setLooping(false);
 
-    if (_settings.resumePlayback) {
-      final resumeMs = _library.resumePositionMs(video.id);
-      if (resumeMs > 2000 && resumeMs < video.durationMs - 3000) {
+    // Videos pick up where they were left; songs start from the top, the way
+    // music players do.
+    if (_settings.resumePlayback && !item.isAudio) {
+      final resumeMs = _library.resumePositionMs(item.id);
+      if (resumeMs > 2000 && resumeMs < item.durationMs - 3000) {
         await controller.seekTo(Duration(milliseconds: resumeMs));
       }
     }
@@ -544,6 +593,7 @@ class PlaybackController extends ChangeNotifier {
     _ready = true;
     await controller.play();
     _applyWakelock();
+    if (item.isAudio) unawaited(_music.recordPlayed(item.id));
     _startSaveTimer();
     _showControlsBriefly();
     unawaited(_syncBackgroundService());
@@ -564,6 +614,8 @@ class PlaybackController extends ChangeNotifier {
     final controller = _vp;
     if (controller == null || !controller.value.isInitialized) return;
     if (_queue.isEmpty) return;
+    // Watch history and resume points are for videos only.
+    if (_queue[_index].isAudio) return;
     final total = controller.value.duration.inMilliseconds;
     if (total <= 0) return;
 
@@ -609,11 +661,13 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> _onCompleted() async {
-    await _library.savePosition(
-      videoId: current.id,
-      positionMs: duration.inMilliseconds,
-      durationMs: duration.inMilliseconds,
-    );
+    if (!current.isAudio) {
+      await _library.savePosition(
+        videoId: current.id,
+        positionMs: duration.inMilliseconds,
+        durationMs: duration.inMilliseconds,
+      );
+    }
 
     if (_loopMode == LoopMode.one) {
       await _vp?.seekTo(Duration.zero);
@@ -621,7 +675,8 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
-    if (!_settings.autoplayNext) {
+    // An album or playlist always carries on to the next song.
+    if (!_settings.autoplayNext && !current.isAudio) {
       _showControls();
       return;
     }
@@ -677,6 +732,61 @@ class PlaybackController extends ChangeNotifier {
     await _load(queueIndex);
   }
 
+  /// Puts [items] straight after what is playing, in their order, even with
+  /// shuffle on. With nothing playing — or a video playing, since a queue does
+  /// not mix songs and videos — they start playing instead.
+  Future<void> playNext(List<Playable> items, {String queueTitle = ''}) async {
+    if (items.isEmpty) return;
+    if (!_canJoinQueue(items)) {
+      await open(
+        queue: items,
+        startIndex: 0,
+        queueTitle: queueTitle,
+        shuffle: false,
+      );
+      return;
+    }
+    final insertAt = _index + 1;
+    _queue = [
+      ..._queue.sublist(0, insertAt),
+      ...items,
+      ..._queue.sublist(insertAt),
+    ];
+    final order = [
+      for (final i in _order) i >= insertAt ? i + items.length : i,
+    ];
+    order.insertAll(order.indexOf(_index) + 1, [
+      for (var k = 0; k < items.length; k++) insertAt + k,
+    ]);
+    _order = order;
+    notifyListeners();
+  }
+
+  /// Adds [items] to the end of the queue, or starts them when they cannot
+  /// join what is playing.
+  Future<void> addToQueue(
+    List<Playable> items, {
+    String queueTitle = '',
+  }) async {
+    if (items.isEmpty) return;
+    if (!_canJoinQueue(items)) {
+      await open(
+        queue: items,
+        startIndex: 0,
+        queueTitle: queueTitle,
+        shuffle: false,
+      );
+      return;
+    }
+    final start = _queue.length;
+    _queue = [..._queue, ...items];
+    _order = [..._order, for (var k = 0; k < items.length; k++) start + k];
+    notifyListeners();
+  }
+
+  bool _canJoinQueue(List<Playable> items) =>
+      hasSession && items.every((i) => i.isAudio == isAudio);
+
   Future<void> seekTo(Duration target) async {
     final controller = _vp;
     if (controller == null) return;
@@ -715,12 +825,67 @@ class PlaybackController extends ChangeNotifier {
     );
   }
 
-  Future<void> endScrub() async {
+  /// [showControls] is off for the swipe on the video, which keeps the screen
+  /// clear; the seek bar brings the controls back as usual.
+  Future<void> endScrub({bool showControls = true}) async {
     final target = scrubPosition.value;
     scrubPosition.value = null;
     if (target != null) await seekTo(target);
-    _showControlsBriefly();
+    if (showControls) _showControlsBriefly();
   }
+
+  static const MethodChannel _scrubChannel = MethodChannel('main_video/scrub');
+
+  /// Whether the video was playing when a swipe started seeking.
+  bool _playingBeforeSwipe = false;
+
+  /// Starts seeking by swipe: the player holds still and switches to its fast
+  /// scrubbing mode, so every move of the finger shows a new frame, the way
+  /// fast-forwarding looks, instead of lagging and then jumping.
+  Future<void> beginSwipeSeek(Duration from) async {
+    beginScrub(from);
+    final controller = _vp;
+    if (controller == null) return;
+    _playingBeforeSwipe = controller.value.isPlaying;
+    if (_playingBeforeSwipe) await controller.pause();
+    await _setScrubbing(controller, true);
+  }
+
+  /// Lands exactly where the finger stopped and carries on as before.
+  Future<void> endSwipeSeek() async {
+    final controller = _vp;
+    if (controller != null) await _setScrubbing(controller, false);
+    await endScrub(showControls: false);
+    if (controller != null && _playingBeforeSwipe) await controller.play();
+    _playingBeforeSwipe = false;
+  }
+
+  static Future<void> _setScrubbing(
+    VideoPlayerController controller,
+    bool enabled,
+  ) async {
+    try {
+      await _scrubChannel.invokeMethod<bool>('setScrubbing', {
+        // The only handle that names this player on the native side; the
+        // plugin marks it for tests but nothing else identifies the player.
+        // ignore: invalid_use_of_visible_for_testing_member
+        'playerId': controller.playerId,
+        'enabled': enabled,
+      });
+    } on PlatformException {
+      // Seeking still works, just without the fast mode.
+    } on MissingPluginException {
+      // Running without the native side (tests).
+    }
+  }
+
+  /// Moves the picture to [target] while a swipe is still seeking, so the
+  /// frame itself shows where the video will land. No rebuild, no readout.
+  void previewSeek(Duration target) => _vp?.seekTo(target);
+
+  /// Hides the controls at once: a swipe on the video shows only its own
+  /// readout, not the buttons, title and seek bar.
+  void hideControlsNow() => _hideControls();
 
   Future<void> setSpeed(double value) async {
     _speed = value;
@@ -927,13 +1092,14 @@ class PlaybackController extends ChangeNotifier {
   Future<void> handleAppPaused() async {
     if (!hasSession) return;
     await _savePosition();
-    if (_isPip || _pipRequested || _settings.backgroundPlayback) return;
+    if (_isPip || _pipRequested || _backgroundAllowed) return;
     await _vp?.pause();
     notifyListeners();
   }
 
   void _applyWakelock() {
-    final shouldHold = _settings.keepScreenOn && isPlaying;
+    // Music does not need the screen; a video being watched does.
+    final shouldHold = _settings.keepScreenOn && isPlaying && !isAudio;
     WakelockPlus.toggle(enable: shouldHold);
   }
 
@@ -958,7 +1124,7 @@ class PlaybackController extends ChangeNotifier {
 
     if (replacement == null) {
       final wasCurrent = at == _index;
-      final queue = List<Video>.from(_queue)..removeAt(at);
+      final queue = List<Playable>.from(_queue)..removeAt(at);
       if (queue.isEmpty) {
         await stop();
         return;
@@ -974,7 +1140,7 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
-    final queue = List<Video>.from(_queue);
+    final queue = List<Playable>.from(_queue);
     queue[at] = replacement;
     _queue = queue;
     notifyListeners();

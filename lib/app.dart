@@ -11,6 +11,7 @@ import 'data/repositories/history_repository.dart';
 import 'data/repositories/playlist_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'state/library_controller.dart';
+import 'state/music_controller.dart';
 import 'state/playback_controller.dart';
 import 'state/settings_controller.dart';
 import 'ui/common/app_background.dart';
@@ -51,6 +52,8 @@ class MainVideoApp extends StatelessWidget {
             return library..load();
           },
         ),
+        // The music library reads nothing until the Music tab is first opened.
+        ChangeNotifierProvider(create: (_) => MusicController()),
         // One playback session for the whole app — this is what lets the mini
         // player survive leaving the player screen, and what guarantees a new
         // video replaces the old one instead of playing alongside it.
@@ -60,10 +63,14 @@ class MainVideoApp extends StatelessWidget {
             final playback = PlaybackController(
               settings: context.read<SettingsController>(),
               library: library,
+              music: context.read<MusicController>(),
             );
             // Keeps whatever is playing in step with renames and deletions.
             library.onVideoChanged = (oldId, replacement) => playback
                 .onLibraryVideoChanged(oldId: oldId, replacement: replacement);
+            // A song deleted from the Music tab leaves the queue the same way.
+            context.read<MusicController>().onSongDeleted = (id) =>
+                playback.onLibraryVideoChanged(oldId: id);
             return playback;
           },
         ),
