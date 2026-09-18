@@ -50,9 +50,9 @@ class AppBottomNav extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppTheme.space20,
+        AppTheme.barMargin,
         AppTheme.space4,
-        AppTheme.space20,
+        AppTheme.barMargin,
         AppTheme.space12,
       ),
       child: FrostedBar(

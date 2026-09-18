@@ -14,7 +14,7 @@ import 'package:photo_manager/photo_manager.dart';
 class ThumbnailService {
   const ThumbnailService._();
 
-  static const int _maxEntries = 320;
+  static const int _maxEntries = 700;
 
   /// Thumbnails are decoded natively, one platform call each. Flinging a long
   /// grid would otherwise queue hundreds at once and starve the channel the

@@ -116,6 +116,8 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
                         _bytes!,
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
+                        cacheWidth: _requestWidth,
+                        filterQuality: FilterQuality.low,
                       )
                     : Center(
                         child: _loading

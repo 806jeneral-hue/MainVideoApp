@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import 'bottom_fade.dart';
+import 'emerge.dart';
 import 'drag_select.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/video.dart';
@@ -76,69 +77,103 @@ class VideoSliver extends StatelessWidget {
             mainAxisSpacing: spacing,
             mainAxisExtent: cardHeight,
           ),
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final video = videos[index];
-            return DragSelectable(
-              key: ValueKey(video.id),
-              id: video.id,
-              child: VideoGridTile(
-                video: video,
-                progress: progressOf(video),
-                isFavorite: isFavorite(video),
-                isPinned: isPinned?.call(video) ?? false,
-                selectionMode: selectionMode,
-                selected: selectedIds.contains(video.id),
-                onTap: () => onTap(video, index),
-                onMore: () => onMore(video),
-              ),
-            );
-          }, childCount: videos.length),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final video = videos[index];
+              return DragSelectable(
+                key: ValueKey(video.id),
+                id: video.id,
+                child: EmergeFromBottom(
+                  child: VideoGridTile(
+                    video: video,
+                    progress: progressOf(video),
+                    isFavorite: isFavorite(video),
+                    isPinned: isPinned?.call(video) ?? false,
+                    selectionMode: selectionMode,
+                    selected: selectedIds.contains(video.id),
+                    onTap: () => onTap(video, index),
+                    onMore: () => onMore(video),
+                  ),
+                ),
+              );
+            },
+            childCount: videos.length,
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: false,
+          ),
         ),
       );
     }
 
-    if (_reorderable) {
-      return SliverPadding(
-        padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
-        sliver: SliverReorderableList(
-          itemCount: videos.length,
-          // onReorderItem hands over an index already adjusted for the removal,
-          // so the caller can insert at it directly.
-          onReorderItem: onReorder!,
-          itemBuilder: (context, index) => _listTile(index, draggable: true),
-        ),
-      );
-    }
+    // A screenful holds a whole number of videos: the rows share out the room
+    // left between whatever sits above the list and the floating bars, so no
+    // half a row is ever parked at the bottom.
+    final perScreen = viewMode == ViewMode.compact ? 9 : 5;
 
-    return SliverPadding(
-      padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) => _listTile(index),
-          childCount: videos.length,
-        ),
-      ),
+    return SliverLayoutBuilder(
+      builder: (context, constraints) {
+        final room =
+            constraints.viewportMainAxisExtent -
+            constraints.precedingScrollExtent -
+            MediaQuery.paddingOf(context).bottom -
+            2;
+        final extent = (room / perScreen).clamp(
+          viewMode == ViewMode.compact ? 52.0 : 88.0,
+          viewMode == ViewMode.compact ? 96.0 : 168.0,
+        );
+
+        if (_reorderable) {
+          return SliverPadding(
+            padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
+            sliver: SliverReorderableList(
+              itemCount: videos.length,
+              itemExtent: extent,
+              // onReorderItem hands over an index already adjusted for the
+              // removal, so the caller can insert at it directly.
+              onReorderItem: onReorder!,
+              itemBuilder: (context, index) =>
+                  _listTile(index, extent: extent, draggable: true),
+            ),
+          );
+        }
+
+        return SliverPadding(
+          padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
+          sliver: SliverFixedExtentList(
+            itemExtent: extent,
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _listTile(index, extent: extent),
+              childCount: videos.length,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: false,
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _listTile(int index, {bool draggable = false}) {
+  Widget _listTile(int index, {double? extent, bool draggable = false}) {
     final video = videos[index];
     // Tagged so a drag across the list can tell what is under the finger.
     return DragSelectable(
       key: ValueKey(video.id),
       id: video.id,
-      child: VideoListTile(
-        video: video,
-        compact: viewMode == ViewMode.compact,
-        progress: progressOf(video),
-        isFavorite: isFavorite(video),
-        isPinned: isPinned?.call(video) ?? false,
-        subtitleOverride: subtitleOf?.call(video),
-        selectionMode: selectionMode,
-        selected: selectedIds.contains(video.id),
-        dragHandleIndex: draggable ? index : null,
-        onTap: () => onTap(video, index),
-        onMore: () => onMore(video),
+      child: EmergeFromBottom(
+        child: VideoListTile(
+          video: video,
+          compact: viewMode == ViewMode.compact,
+          extent: extent,
+          progress: progressOf(video),
+          isFavorite: isFavorite(video),
+          isPinned: isPinned?.call(video) ?? false,
+          subtitleOverride: subtitleOf?.call(video),
+          selectionMode: selectionMode,
+          selected: selectedIds.contains(video.id),
+          dragHandleIndex: draggable ? index : null,
+          onTap: () => onTap(video, index),
+          onMore: () => onMore(video),
+        ),
       ),
     );
   }

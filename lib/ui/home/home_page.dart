@@ -22,6 +22,7 @@ import '../video/video_actions_sheet.dart';
 import 'widgets/library_status_view.dart';
 import 'widgets/sort_sheet.dart';
 import '../../core/theme/app_icons.dart';
+import '../common/app_icon.dart';
 
 /// Quick filters standing in for the Recently Added / Recently Played
 /// sections of phase 6.
@@ -133,11 +134,8 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                         searchHint: context.s.searchVideos,
                         onQueryChanged: library.setQuery,
                         onToggleSearch: () => _toggleSearch(library),
-                        onSortAndLayout: () => showSortSheet(
-                          context,
-                          CollectionKey.home,
-                          showViewMode: true,
-                        ),
+                        // Sort sits at the end of the filter row instead.
+                        onSortAndLayout: null,
                       ),
                     ),
                   SliverToBoxAdapter(
@@ -145,6 +143,11 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                       selected: filter,
                       showHistory: showHistory,
                       onChanged: (value) => setState(() => _filter = value),
+                      onSortAndLayout: () => showSortSheet(
+                        context,
+                        CollectionKey.home,
+                        showViewMode: true,
+                      ),
                     ),
                   ),
                   const SliverToBoxAdapter(
@@ -264,8 +267,10 @@ class _FilterRow extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     required this.showHistory,
+    required this.onSortAndLayout,
   });
 
+  final VoidCallback onSortAndLayout;
   final HomeFilter selected;
   final ValueChanged<HomeFilter> onChanged;
   final bool showHistory;
@@ -281,34 +286,103 @@ class _FilterRow extends StatelessWidget {
 
     return SizedBox(
       // Tall enough that the pills' shadows are not cut off by the list.
-      height: 60,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(
-          AppTheme.pageMargin,
-          AppTheme.space4,
-          AppTheme.pageMargin,
-          AppTheme.space8,
-        ),
-        clipBehavior: Clip.none,
+      height: 50,
+      child: Row(
         children: [
-          for (final entry in filters.entries)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppTheme.space8),
-              child: _FilterPill(
-                label: entry.value,
-                selected: selected == entry.key,
-                onTap: () => onChanged(entry.key),
+          Expanded(
+            // Pills that do not fit fade out before the sort button instead of
+            // sliding underneath it.
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (bounds) => LinearGradient(
+                begin: AlignmentDirectional.centerStart.resolve(
+                  Directionality.of(context),
+                ),
+                end: AlignmentDirectional.centerEnd.resolve(
+                  Directionality.of(context),
+                ),
+                colors: const [Colors.white, Colors.white, Colors.transparent],
+                stops: [0, 1 - 20 / bounds.width.clamp(40, double.infinity), 1],
+              ).createShader(bounds),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppTheme.pageMargin,
+                  AppTheme.space4,
+                  AppTheme.space8,
+                  AppTheme.space8,
+                ),
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  for (final entry in filters.entries)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        end: AppTheme.space8,
+                      ),
+                      child: _FilterPill(
+                        label: entry.value,
+                        selected: selected == entry.key,
+                        onTap: () => onChanged(entry.key),
+                      ),
+                    ),
+                ],
               ),
             ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              0,
+              AppTheme.space4,
+              AppTheme.pageMargin,
+              AppTheme.space8,
+            ),
+            child: _SortPill(onTap: onSortAndLayout),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Glass pill. The selected one is tinted with the accent and carries a tick;
-/// the rest stay quiet.
+/// Sort and layout, as a short glass capsule closing the filter row.
+class _SortPill extends StatelessWidget {
+  const _SortPill({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressScale(
+      child: GlassSurface(
+        radius: AppTheme.pillRadius,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTheme.pillRadius,
+            child: Tooltip(
+              message: context.s.sortAndLayout,
+              child: SizedBox(
+                width: 46,
+                height: 36,
+                child: Center(
+                  child: AppIcon(
+                    AppIcons.swap_vert_rounded,
+                    size: 19,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Glass pill. The selected one is filled with the accent and carries a
+/// ticked circle; the rest stay quiet.
 class _FilterPill extends StatelessWidget {
   const _FilterPill({
     required this.label,
@@ -324,52 +398,63 @@ class _FilterPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return PressScale(
-      child: GlassSurface(
-        radius: AppTheme.pillRadius,
-        selected: selected,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppTheme.pillRadius,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.space20,
-                vertical: 11,
-              ),
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (selected) ...[
-                      Icon(
-                        AppIcons.check_rounded,
-                        size: 18,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      label,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: selected
-                            ? theme.colorScheme.onSurface
-                            : context.muted,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                      ),
-                    ),
-                  ],
+    final accent = theme.colorScheme.primary;
+    final onAccent = theme.colorScheme.onPrimary;
+
+    final content = Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppTheme.pillRadius,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  Icon(
+                    AppIcons.check_circle_rounded,
+                    size: 16,
+                    color: onAccent.withValues(alpha: 0.9),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontSize: 13,
+                    color: selected ? onAccent : context.muted,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
       ),
+    );
+
+    return PressScale(
+      child: selected
+          ? DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: AppTheme.pillRadius,
+                color: accent.withValues(alpha: 0.72),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: content,
+            )
+          : GlassSurface(radius: AppTheme.pillRadius, child: content),
     );
   }
 }

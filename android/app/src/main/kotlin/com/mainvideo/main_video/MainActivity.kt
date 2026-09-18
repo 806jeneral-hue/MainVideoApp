@@ -31,6 +31,31 @@ class MainActivity : FlutterActivity() {
     private var mediaIndexChannel: MethodChannel? = null
     private var videoScrubbing: VideoScrubbing? = null
 
+    /**
+     * Asks for the display's highest refresh rate.
+     *
+     * Some phones keep an app at 60 Hz unless it says it can go faster, which
+     * makes scrolling look choppier than the rest of the system. The window
+     * only states a preference: Android still honours the user's own refresh
+     * rate setting and drops back when the battery is low.
+     */
+    private fun requestHighRefreshRate() {
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
+        val best = display?.supportedModes
+            ?.filter { it.physicalWidth == display.mode.physicalWidth && it.physicalHeight == display.mode.physicalHeight }
+            ?.maxByOrNull { it.refreshRate } ?: return
+
+        window.attributes = window.attributes.apply {
+            preferredRefreshRate = best.refreshRate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) preferredDisplayModeId = best.modeId
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        requestHighRefreshRate()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 

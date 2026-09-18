@@ -28,6 +28,7 @@ class VideoListTile extends StatelessWidget {
     this.selected = false,
     this.dragHandleIndex,
     this.compact = false,
+    this.extent,
   });
 
   final Video video;
@@ -49,32 +50,49 @@ class VideoListTile extends StatelessWidget {
   /// Smaller thumbnail and text, so more videos fit on screen.
   final bool compact;
 
+  /// The exact height this row was given, so a page holds a whole number of
+  /// videos with nothing left over at the bottom. Null lets the row size
+  /// itself from its contents.
+  final double? extent;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = context.muted;
     final accent = context.accent;
 
-    return Padding(
+    final gap = compact ? 6.0 : AppTheme.space12;
+    final pad = compact ? 6.0 : 10.0;
+    // The picture keeps the proportions it has always had; only its size
+    // follows the row.
+    final ratio = compact ? 1.75 : 1.55;
+    final thumbHeight = extent != null
+        ? (extent! - gap - pad * 2).clamp(34.0, 160.0)
+        : (compact ? 48.0 : (selectionMode ? 76.0 : 88.0));
+    final thumbWidth = extent != null
+        ? thumbHeight * ratio
+        : (compact ? 84.0 : (selectionMode ? 116.0 : 136.0));
+
+    final row = Padding(
       padding: EdgeInsets.fromLTRB(
         AppTheme.pageMargin,
         0,
         AppTheme.pageMargin,
-        compact ? AppTheme.space8 : AppTheme.space12,
+        gap,
       ),
       child: GlassSurface(
         selected: selected,
-        radius: compact ? BorderRadius.circular(20) : null,
+        radius: compact ? BorderRadius.circular(16) : null,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
             onLongPress: onMore,
             borderRadius: compact
-                ? BorderRadius.circular(20)
+                ? BorderRadius.circular(16)
                 : AppTheme.cardRadius,
             child: Padding(
-              padding: EdgeInsets.all(compact ? 8 : 10),
+              padding: EdgeInsets.all(pad),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -95,34 +113,36 @@ class VideoListTile extends StatelessWidget {
                   ],
                   VideoThumbnail(
                     video: video,
-                    width: compact ? 100 : (selectionMode ? 116 : 136),
-                    height: compact ? 58 : (selectionMode ? 76 : 88),
-                    borderRadius: compact ? BorderRadius.circular(13) : null,
+                    width: thumbWidth,
+                    height: thumbHeight,
+                    borderRadius: compact ? BorderRadius.circular(11) : null,
                     showPlayGlyph: !selectionMode && !compact,
                     progress: progress,
                   ),
                   const SizedBox(width: AppTheme.space12),
                   Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(top: compact ? 2 : 6),
+                      padding: EdgeInsets.only(top: compact ? 1 : 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                             video.displayName,
-                            maxLines: 2,
+                            maxLines: (compact || thumbHeight < 64) ? 1 : 2,
                             overflow: TextOverflow.ellipsis,
                             style:
                                 (compact
                                         ? theme.textTheme.bodyMedium
                                         : theme.textTheme.bodyLarge)
                                     ?.copyWith(
+                                      fontSize: compact ? 13 : null,
                                       fontWeight: FontWeight.w600,
-                                      height: 1.3,
+                                      height: 1.25,
                                     ),
                           ),
-                          SizedBox(height: compact ? 4 : AppTheme.space8),
+                          SizedBox(height: compact ? 3 : AppTheme.space8),
                           _MetaRow(
                             video: video,
                             muted: muted,
@@ -165,6 +185,10 @@ class VideoListTile extends StatelessWidget {
         ),
       ),
     );
+
+    // Given a height, the row fills it exactly, so a screenful is a whole
+    // number of videos with no half one left under the bars.
+    return extent == null ? row : SizedBox(height: extent, child: row);
   }
 }
 

@@ -6,6 +6,7 @@ import '../../../data/models/song.dart';
 import '../../../state/playback_controller.dart';
 import '../music_actions.dart';
 import 'music_tiles.dart';
+import '../../common/emerge.dart';
 
 /// A fixed-height list of songs. Only the rows whose "playing" mark changes
 /// rebuild when the track changes.
@@ -35,21 +36,28 @@ class SongSliver extends StatelessWidget {
 
     return SliverFixedExtentList(
       itemExtent: kSongTileExtent,
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final song = songs[index];
-        return SongTile(
-          song: song,
-          isCurrent: song.id == currentId,
-          leadingNumber: numbered ? index + 1 : null,
-          onTap: () => playSongs(context, songs, index: index, title: title),
-          onMore: () => showSongActions(
-            context,
-            song,
-            playlistId: playlistId,
-            queueTitle: title,
-          ),
-        );
-      }, childCount: songs.length),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final song = songs[index];
+          return EmergeFromBottom(
+            child: SongTile(
+              song: song,
+              isCurrent: song.id == currentId,
+              leadingNumber: numbered ? index + 1 : null,
+              onTap: () =>
+                  playSongs(context, songs, index: index, title: title),
+              onMore: () => showSongActions(
+                context,
+                song,
+                playlistId: playlistId,
+                queueTitle: title,
+              ),
+            ),
+          );
+        },
+        childCount: songs.length,
+        addRepaintBoundaries: false,
+      ),
     );
   }
 }

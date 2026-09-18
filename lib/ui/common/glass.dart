@@ -170,6 +170,7 @@ class GlassSurface extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.selected = false,
     this.floating = false,
+    this.blur = false,
   });
 
   final Widget child;
@@ -178,18 +179,42 @@ class GlassSurface extends StatelessWidget {
   final bool selected;
   final bool floating;
 
+  /// Blurs what is behind it, the way real frosted glass does. Kept for the
+  /// few pieces that float on their own — headers, filters, bars — never for
+  /// list cards, where one blur layer per row would cost the scroll its
+  /// smoothness.
+  final bool blur;
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
+    final shape = radius ?? AppTheme.cardRadius;
+    final surface = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       decoration: context.glassSurface(
-        radius: radius,
+        radius: shape,
         selected: selected,
         floating: floating,
       ),
       padding: padding,
       child: child,
+    );
+    if (!blur) return surface;
+
+    return Stack(
+      children: [
+        // Behind the fill, so the frosting reads through it rather than over.
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: shape,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+        surface,
+      ],
     );
   }
 }
@@ -241,6 +266,7 @@ class GlassIconButton extends StatelessWidget {
     this.size = 46,
     this.iconSize = 22,
     this.selected = false,
+    this.blur = false,
   });
 
   final IconData icon;
@@ -249,6 +275,7 @@ class GlassIconButton extends StatelessWidget {
   final double size;
   final double iconSize;
   final bool selected;
+  final bool blur;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +286,7 @@ class GlassIconButton extends StatelessWidget {
       child: GlassSurface(
         radius: shape,
         floating: true,
+        blur: blur,
         selected: selected,
         child: Material(
           type: MaterialType.transparency,
@@ -369,8 +397,16 @@ class FrostedBar extends StatelessWidget {
             sigmaX: AppTheme.frostedBlur,
             sigmaY: AppTheme.frostedBlur,
           ),
-          child: DecoratedBox(
+          child: Container(
             decoration: AppTheme.frostedBar(theme, radius),
+            // The rim is painted over the fill, so the bar carries the same
+            // lit edge as every other piece of glass.
+            foregroundDecoration: ShapeDecoration(
+              shape: AppTheme.glassEdge(
+                theme.brightness == Brightness.dark,
+                radius,
+              ),
+            ),
             child: child,
           ),
         ),

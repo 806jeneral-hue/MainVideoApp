@@ -8,7 +8,13 @@ import '../../../core/utils/formatters.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/song.dart';
 import '../../../data/models/video.dart';
+import '../../../state/library_controller.dart';
 import '../../../state/playback_controller.dart';
+import '../../folders/add_to_playlist_sheet.dart';
+import '../../video/move_to_sheet.dart';
+import '../../video/video_actions_sheet.dart';
+import '../../video/video_info_page.dart';
+import '../player_page.dart';
 import '../../common/video_thumbnail.dart';
 import '../../music/widgets/album_art.dart';
 import '../../common/glass_controls.dart';
@@ -34,6 +40,11 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
           final s = context.s;
           final settings = player.settings;
           final sleeping = player.sleepRemaining;
+          // Everything the library's own menu offers for this video, so the
+          // player does not have to be left to reach it.
+          final playable = player.current;
+          final video = playable is Video ? playable : null;
+          final library = context.read<LibraryController>();
 
           return SafeArea(
             child: Column(
@@ -112,6 +123,83 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                       showSleepTimerSheet(context);
                     },
                   ),
+                if (video != null) ...[
+                  const SizedBox(height: 6),
+                  _OptionRow(
+                    icon: library.isFavorite(video.id)
+                        ? AppIcons.favorite
+                        : AppIcons.favorite_border,
+                    title: library.isFavorite(video.id)
+                        ? s.removeFromFavorites
+                        : s.addToFavorites,
+                    value: '',
+                    active: library.isFavorite(video.id),
+                    onTap: () => library.toggleFavorite(video.id),
+                  ),
+                  _OptionRow(
+                    icon: AppIcons.playlist_add_rounded,
+                    title: s.addToPlaylist,
+                    value: '',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await showAddToPlaylistSheet(context, [video.id]);
+                    },
+                  ),
+                  _OptionRow(
+                    icon: AppIcons.drive_file_move_outline,
+                    title: s.moveTo,
+                    value: '',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await showMoveToSheet(context, [video]);
+                    },
+                  ),
+                  _OptionRow(
+                    icon: AppIcons.drive_file_rename_outline_rounded,
+                    title: s.rename,
+                    value: '',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await promptRenameVideo(context, library, video);
+                    },
+                  ),
+                  _OptionRow(
+                    icon: library.isVideoHidden(video.id)
+                        ? AppIcons.visibility_rounded
+                        : AppIcons.visibility_off_outlined,
+                    title: library.isVideoHidden(video.id)
+                        ? s.unhideVideo
+                        : s.hideVideo,
+                    value: '',
+                    active: library.isVideoHidden(video.id),
+                    onTap: () => library.toggleVideoHidden(video.id),
+                  ),
+                  _OptionRow(
+                    icon: AppIcons.info_outline_rounded,
+                    title: s.videoInfo,
+                    value: '',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => VideoInfoPage(video: video),
+                        ),
+                      );
+                    },
+                  ),
+                  _OptionRow(
+                    icon: AppIcons.delete_outline_rounded,
+                    title: s.deleteFromDevice,
+                    value: '',
+                    destructive: true,
+                    onTap: () async {
+                      Navigator.pop(context);
+                      // Leave the player first: the file is about to go.
+                      closePlayer(context, stopPlayback: true);
+                      await confirmDeleteVideo(context, library, video);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 12),
               ],
             ),
@@ -129,6 +217,7 @@ class _OptionRow extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.active = false,
+    this.destructive = false,
     this.trailing,
   });
 
@@ -137,11 +226,16 @@ class _OptionRow extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
   final bool active;
+
+  /// Deleting: the row is tinted the warning colour.
+  final bool destructive;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? context.accent : context.muted;
+    final color = destructive
+        ? Colors.redAccent
+        : (active ? context.accent : context.muted);
 
     return GlassTile(
       onTap: onTap,

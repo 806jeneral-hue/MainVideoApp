@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// Room left under a list's last item, so it can scroll clear of the bars and
-/// be read in full above them.
-const double kFadeBand = 24;
+import '../../core/theme/app_theme.dart';
 
-/// Lets a list run on behind the floating bottom bars and dissolve there.
+/// Room left under a list's last item, so it can scroll clear of the bars and
+/// be read at full size above them.
+const double kFadeBand = 28;
+
+/// Keeps a list from showing in the strip under the floating bottom bars.
 ///
-/// The navigation bar and mini player are see-through glass, so what scrolls
-/// behind them shows softly through their blur, the way frosted glass does.
-/// Across the height of the bars the list fades out gradually — it is still
-/// there just under their top edge and gone by the bottom of the screen — so
-/// the bars never sit on a hard cut-off.
+/// Rows do pass behind the bars — that is what the frosting is for — but the
+/// gap between the bars and the bottom edge of the phone belongs to the page,
+/// not to the list, so the list is cut off there. Nothing can flash into that
+/// gap while scrolling or refreshing, and rows fade out as they go under the
+/// bars (see [EmergeFromBottom]).
 class BottomFade extends StatelessWidget {
   const BottomFade({super.key, required this.child});
 
@@ -18,44 +20,53 @@ class BottomFade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // With `extendBody: true` the Scaffold reports the height of the bottom
-    // bars here, so this tracks the mini player appearing and disappearing.
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    if (bottomInset <= 0) return child;
+    // The bar's own bottom margin plus whatever the system keeps for its
+    // gesture handle: together, the empty strip under the bars. The system
+    // inset comes from [SystemBottomInset], because by the time a page's body
+    // is built the Scaffold has replaced the one in the tree with the height
+    // of its own bottom bars.
+    final strip = AppTheme.space12 + SystemBottomInset.of(context);
+    if (strip <= 0 || MediaQuery.paddingOf(context).bottom <= 0) return child;
 
-    return RepaintBoundary(
-      child: ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (bounds) {
-          final height = bounds.height;
-          if (height <= 0) {
-            return const LinearGradient(
-              colors: [Colors.white, Colors.white],
-            ).createShader(bounds);
-          }
-
-          // Full strength until the top of the bars, then an eased dissolve
-          // down to nothing at the bottom edge of the screen.
-          final start = ((height - bottomInset) / height).clamp(0.0, 1.0);
-          final span = 1 - start;
-
-          return LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: const [
-              Colors.white,
-              Colors.white,
-              Color(0xB3FFFFFF),
-              Color(0x40FFFFFF),
-              Colors.transparent,
-            ],
-            stops: [0, start, start + span * 0.35, start + span * 0.7, 1],
-          ).createShader(bounds);
-        },
-        child: child,
-      ),
-    );
+    return ClipRect(clipper: _AboveTheGap(strip), child: child);
   }
+}
+
+/// Carries the system's own bottom inset — the room the phone keeps for its
+/// gesture handle — down past the Scaffolds, which overwrite it.
+class SystemBottomInset extends InheritedWidget {
+  const SystemBottomInset({
+    super.key,
+    required this.value,
+    required super.child,
+  });
+
+  final double value;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SystemBottomInset>()?.value ??
+      0;
+
+  @override
+  bool updateShouldNotify(SystemBottomInset oldWidget) =>
+      oldWidget.value != value;
+}
+
+class _AboveTheGap extends CustomClipper<Rect> {
+  const _AboveTheGap(this.strip);
+
+  final double strip;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(
+    0,
+    0,
+    size.width,
+    (size.height - strip).clamp(0, size.height),
+  );
+
+  @override
+  bool shouldReclip(_AboveTheGap oldClipper) => oldClipper.strip != strip;
 }
 
 /// Bottom padding that lets the last item scroll all the way clear of the

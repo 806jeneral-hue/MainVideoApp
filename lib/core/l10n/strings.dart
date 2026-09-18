@@ -346,9 +346,9 @@ class StringsEn extends Strings {
   @override
   String get filterAll => 'All';
   @override
-  String get filterRecentlyAdded => 'Recently added';
+  String get filterRecentlyAdded => 'Added';
   @override
-  String get filterRecentlyPlayed => 'Recently played';
+  String get filterRecentlyPlayed => 'Played';
   @override
   String get allVideos => 'All videos';
   @override
@@ -1442,4 +1442,8 @@ extension ImprovementStrings on Strings {
   String get changeImage => _isArabic ? 'تغيير' : 'Change';
   String get removeImage => _isArabic ? 'إزالة' : 'Remove';
   String get backgroundBlur => _isArabic ? 'درجة التمويه' : 'Blur';
+  String get glassStrength => _isArabic ? 'شفافية الزجاج' : 'Glass';
+  String get glassStrengthBody => _isArabic
+      ? 'اسحب لتتحكم في مدى شفافية البطاقات والأزرار.'
+      : 'Slide to set how see-through cards and buttons are.';
 }

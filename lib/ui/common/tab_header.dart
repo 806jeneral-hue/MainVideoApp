@@ -7,8 +7,9 @@ import 'glass.dart';
 import '../../core/theme/app_icons.dart';
 import 'app_icon.dart';
 
-/// The header of a main tab: settings, the title, search, and one button for
-/// sort and layout — all floating glass on a single row.
+/// The header of a main tab: settings and search together at the start, the
+/// title at the far end, and optionally one button for sort and layout — all
+/// floating glass on a single row.
 ///
 /// Search opens under the row, only while it is in use, so the header costs
 /// no extra height the rest of the time.
@@ -51,24 +52,7 @@ class TabHeader extends StatelessWidget {
           Row(
             children: [
               const SettingsButton(),
-              // The title sits in the gap between the buttons, on the same
-              // line, so it costs no height.
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.space12,
-                  ),
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(width: AppTheme.space12),
               GlassIconButton(
                 tooltip: searching ? s.closeSearch : s.search,
                 icon: searching
@@ -85,6 +69,23 @@ class TabHeader extends StatelessWidget {
                   onPressed: onSortAndLayout,
                 ),
               ],
+              // The title fills the rest of the row, pushed to the far end.
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: AppTheme.space12,
+                  ),
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           AnimatedSize(

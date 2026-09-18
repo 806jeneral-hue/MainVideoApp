@@ -20,6 +20,7 @@ import '../common/glass_dialog.dart';
 import '../common/glass_controls.dart';
 import '../common/glass_snack_bar.dart';
 import '../../core/theme/app_icons.dart';
+import '../common/default_backdrop.dart';
 
 /// Phase 7 — the general settings screen that gathers appearance, history,
 /// and links out to the playback and folder screens.
@@ -104,6 +105,7 @@ class AppSettingsPage extends StatelessWidget {
               ),
             ),
           ),
+          _GlassCard(settings: settings),
           SettingsSection(context.s.backgroundImage),
           _BackgroundCard(settings: settings),
           SettingsSection(context.s.history),
@@ -309,6 +311,48 @@ class AppSettingsPage extends StatelessWidget {
 
 /// One colour in the accent picker.
 /// Background picture: a preview, choose / remove, and how soft it is.
+/// How solid the app's glass is, on a plain slider so it can be felt rather
+/// than picked from steps.
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.settings});
+
+  final SettingsController settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.glassStrengthBody,
+              style: theme.textTheme.bodySmall?.copyWith(color: context.muted),
+            ),
+            Row(
+              children: [
+                Icon(AppIcons.blur_on_rounded, size: 20, color: context.muted),
+                const SizedBox(width: AppTheme.space8),
+                Text(s.glassStrength, style: theme.textTheme.bodyMedium),
+                Expanded(
+                  child: Slider(
+                    value: settings.glassStrength,
+                    onChanged: settings.setGlassStrength,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BackgroundCard extends StatelessWidget {
   const _BackgroundCard({required this.settings});
 
@@ -349,13 +393,7 @@ class _BackgroundCard extends StatelessWidget {
                     width: 64,
                     height: 96,
                     child: path == null
-                        ? ColoredBox(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: Icon(
-                              AppIcons.wallpaper_rounded,
-                              color: context.muted,
-                            ),
-                          )
+                        ? const DefaultBackdrop()
                         : Image.file(
                             File(path),
                             fit: BoxFit.cover,

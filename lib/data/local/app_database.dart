@@ -104,6 +104,7 @@ class SettingsKeys {
   static const accentKey = 'accentKey';
   static const backgroundImage = 'backgroundImage';
   static const backgroundBlur = 'backgroundBlur';
+  static const glassStrength = 'glassStrength';
 
   // Music
   static const musicSort = 'musicSort';

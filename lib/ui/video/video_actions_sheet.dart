@@ -174,7 +174,7 @@ class _VideoActionsSheet extends StatelessWidget {
               label: context.s.rename,
               onTap: () async {
                 Navigator.pop(context);
-                await _rename(context, library, video);
+                await promptRenameVideo(context, library, video);
               },
             ),
             _Action(
@@ -195,7 +195,7 @@ class _VideoActionsSheet extends StatelessWidget {
               destructive: true,
               onTap: () async {
                 Navigator.pop(context);
-                await _delete(context, library, video);
+                await confirmDeleteVideo(context, library, video);
               },
             ),
             const SizedBox(height: 12),
@@ -206,7 +206,9 @@ class _VideoActionsSheet extends StatelessWidget {
   }
 }
 
-Future<void> _rename(
+/// Asks for a new name and renames the file. Shared with the player's own
+/// options sheet.
+Future<void> promptRenameVideo(
   BuildContext context,
   LibraryController library,
   Video video,
@@ -250,7 +252,8 @@ Future<void> _rename(
   );
 }
 
-Future<void> _delete(
+/// Confirms, then deletes the file. Shared with the player's options sheet.
+Future<void> confirmDeleteVideo(
   BuildContext context,
   LibraryController library,
   Video video,

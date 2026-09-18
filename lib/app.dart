@@ -16,6 +16,7 @@ import 'state/playback_controller.dart';
 import 'state/settings_controller.dart';
 import 'ui/common/app_background.dart';
 import 'ui/shell/home_shell.dart';
+import 'ui/common/bottom_fade.dart';
 
 class MainVideoApp extends StatelessWidget {
   const MainVideoApp({super.key});
@@ -80,21 +81,23 @@ class MainVideoApp extends StatelessWidget {
           // Gesture feedback reads a plain flag rather than the provider, so
           // it can be called from inside a drag handler without a context.
           Haptics.enabled = settings.hapticsEnabled;
+          // Read while painting glass, so it cannot go through the theme.
+          AppTheme.glassStrength = settings.glassStrength;
 
           return MaterialApp(
             title: 'Main Video',
             debugShowCheckedModeBanner: false,
             themeMode: settings.themeMode,
-            theme: AppTheme.light(
-              settings.accent,
-              settings.backgroundImage != null,
+            // Pages are always see-through: behind them is either the chosen
+            // picture or the app's own backdrop.
+            theme: AppTheme.light(settings.accent, true),
+            darkTheme: AppTheme.dark(settings.accent, true),
+            builder: (context, child) => SystemBottomInset(
+              // Read here, above every route, where it is still the phone's
+              // own inset rather than the height of a Scaffold's bottom bars.
+              value: MediaQuery.paddingOf(context).bottom,
+              child: AppBackground(child: child ?? const SizedBox.shrink()),
             ),
-            darkTheme: AppTheme.dark(
-              settings.accent,
-              settings.backgroundImage != null,
-            ),
-            builder: (context, child) =>
-                AppBackground(child: child ?? const SizedBox.shrink()),
             // A null locale follows the device; Arabic also flips the layout
             // to right-to-left, which Flutter handles through Directionality.
             locale: settings.locale,

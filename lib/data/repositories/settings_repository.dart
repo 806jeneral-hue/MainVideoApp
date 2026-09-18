@@ -194,6 +194,12 @@ class SettingsRepository {
   Future<void> setBackgroundBlur(double value) =>
       _set(SettingsKeys.backgroundBlur, value);
 
+  /// How solid the glass is, from 0 (barely there) to 1 (milky).
+  double get glassStrength =>
+      _get<num>(SettingsKeys.glassStrength, 0.5).toDouble();
+  Future<void> setGlassStrength(double value) =>
+      _set(SettingsKeys.glassStrength, value);
+
   // ----------------------------------------------------------------- language
   /// Null means "follow the device language".
   String? get localeCode {

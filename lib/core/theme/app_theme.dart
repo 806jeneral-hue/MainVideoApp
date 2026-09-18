@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'glass_border.dart';
 import 'package:flutter/services.dart';
 
 import 'accent_palette.dart';
@@ -48,6 +50,10 @@ class AppTheme {
   /// Page side margin, used by every screen so columns line up.
   static const double pageMargin = 16;
 
+  /// The floating bars are set a little wider than the cards, so a list
+  /// passing behind them is covered instead of peeking out at their sides.
+  static const double barMargin = 10;
+
   // Spacing scale. Every gap in the app is one of these, so rhythm stays
   // consistent from screen to screen.
   static const double space4 = 4;
@@ -71,8 +77,7 @@ class AppTheme {
       ];
     }
     return const [
-      BoxShadow(color: Color(0x0F101828), blurRadius: 16, offset: Offset(0, 5)),
-      BoxShadow(color: Color(0x0A101828), blurRadius: 3, offset: Offset(0, 1)),
+      BoxShadow(color: Color(0x14101828), blurRadius: 14, offset: Offset(0, 4)),
     ];
   }
 
@@ -118,7 +123,33 @@ class AppTheme {
   /// It carries the look of glass — a translucent milky fill, a bright hairline
   /// edge, a soft lift — without a live blur. There is nothing busy behind these
   /// to blur, and hundreds of blurred cards would cost every scroll frame.
-  static BoxDecoration glassSurface(
+  /// How solid every piece of glass is, 0 to 1, set from Settings.
+  static double glassStrength = 0.5;
+
+  /// Reads the setting as an alpha between [thin] and [thick].
+  static double _glassAlpha(double thin, double thick) =>
+      thin + (thick - thin) * glassStrength.clamp(0, 1);
+
+  /// The lit rim every piece of glass shares: bright where the light lands,
+  /// gone on the far side. [strength] dims it for the quieter pieces.
+  static GlassBorder glassEdge(
+    bool isDark,
+    BorderRadius radius, {
+    Color? tint,
+    double strength = 1,
+    double width = 1.2,
+  }) => GlassBorder(
+    radius: radius,
+    lit:
+        tint ??
+        Colors.white.withValues(alpha: (isDark ? 0.55 : 1.0) * strength),
+    shade:
+        tint?.withValues(alpha: 0.25 * strength) ??
+        Colors.white.withValues(alpha: (isDark ? 0.06 : 0.35) * strength),
+    width: width,
+  );
+
+  static ShapeDecoration glassSurface(
     ThemeData theme, {
     BorderRadius? radius,
     bool selected = false,
@@ -129,10 +160,14 @@ class AppTheme {
     // through it, the way frosted glass does.
     final overPicture = theme.scaffoldBackgroundColor.a == 0;
     final base = isDark
-        ? Colors.white.withValues(alpha: floating ? 0.10 : 0.07)
+        ? Colors.white.withValues(
+            alpha: floating
+                ? _glassAlpha(0.05, 0.22)
+                : _glassAlpha(0.035, 0.17),
+          )
         : Colors.white.withValues(
             alpha: overPicture
-                ? (floating ? 0.62 : 0.48)
+                ? (floating ? _glassAlpha(0.34, 0.80) : _glassAlpha(0.25, 0.70))
                 : (floating ? 0.80 : 0.66),
           );
     final fill = selected
@@ -142,43 +177,60 @@ class AppTheme {
           )
         : base;
 
-    return BoxDecoration(
-      color: fill,
-      borderRadius: radius ?? cardRadius,
-      border: Border.all(
-        color: selected
-            ? theme.colorScheme.primary.withValues(alpha: isDark ? 0.40 : 0.28)
-            : (isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.95)),
-        width: 1,
+    return ShapeDecoration(
+      // Glass is never one flat tint: it catches the light at its top-left
+      // corner and settles towards the other one.
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _lift(fill, isDark ? 0.085 : 0.20),
+          fill,
+          _lift(fill, isDark ? -0.025 : -0.12),
+        ],
+        stops: const [0, 0.32, 1],
       ),
-      boxShadow: floating
+      shape: glassEdge(
+        isDark,
+        radius ?? cardRadius,
+        tint: selected ? theme.colorScheme.primary : null,
+      ),
+      shadows: floating
           ? floatingShadow(theme.brightness)
           : cardShadow(theme.brightness),
     );
   }
+
+  /// Brightens (or, for a negative [by], dims) a translucent white by moving
+  /// its alpha, so the glass keeps its colour and only its light changes.
+  static Color _lift(Color color, double by) =>
+      color.withValues(alpha: (color.a + by).clamp(0, 1));
 
   /// The see-through glass of the bars floating at the bottom — navigation and
   /// mini player. Paired with a real blur behind it ([FrostedBar]), so the
   /// list scrolling underneath shows softly through.
   static BoxDecoration frostedBar(ThemeData theme, BorderRadius radius) {
     final isDark = theme.brightness == Brightness.dark;
+    final fill = isDark
+        ? Colors.white.withValues(alpha: _glassAlpha(0.06, 0.20))
+        : Colors.white.withValues(alpha: _glassAlpha(0.38, 0.78));
     return BoxDecoration(
-      color: isDark
-          ? Colors.white.withValues(alpha: 0.10)
-          : Colors.white.withValues(alpha: 0.55),
-      borderRadius: radius,
-      border: Border.all(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.14)
-            : Colors.white.withValues(alpha: 0.90),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _lift(fill, isDark ? 0.09 : 0.18),
+          fill,
+          _lift(fill, isDark ? -0.02 : -0.10),
+        ],
+        stops: const [0, 0.35, 1],
       ),
+      borderRadius: radius,
     );
   }
 
   /// How far the content behind a bottom bar is blurred.
-  static const double frostedBlur = 22;
+  static const double frostedBlur = 12;
 
   /// A slightly stronger lift for things that float over content: the
   /// bottom navigation and the mini player.
@@ -193,8 +245,7 @@ class AppTheme {
       ];
     }
     return const [
-      BoxShadow(color: Color(0x1A101828), blurRadius: 24, offset: Offset(0, 8)),
-      BoxShadow(color: Color(0x0D101828), blurRadius: 6, offset: Offset(0, 2)),
+      BoxShadow(color: Color(0x1F101828), blurRadius: 20, offset: Offset(0, 7)),
     ];
   }
 
@@ -380,17 +431,12 @@ class AppTheme {
         // part of the same family. Flat: a shadow under a translucent card
         // would show through it as a grey smudge.
         color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.white.withValues(alpha: 0.72),
+            ? Colors.white.withValues(alpha: _glassAlpha(0.04, 0.18))
+            : Colors.white.withValues(alpha: _glassAlpha(0.42, 0.86)),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: cardRadius,
-          side: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
-          ),
-        ),
+        shape: glassEdge(isDark, cardRadius),
       ),
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: cardRadius),
@@ -420,9 +466,7 @@ class AppTheme {
         barrierColor: Colors.black.withValues(alpha: 0.28),
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusSheet),
-        ),
+        shape: glassEdge(isDark, BorderRadius.circular(radiusSheet)),
       ),
       // Text fields are glass too: a milky fill with a bright hairline edge.
       inputDecorationTheme: InputDecorationTheme(
@@ -520,8 +564,8 @@ class AppTheme {
               : Colors.white.withValues(alpha: 0.72),
         ),
         checkmarkColor: accentColor,
-        side: BorderSide(color: _glassEdge(isDark)),
-        shape: RoundedRectangleBorder(borderRadius: pillRadius),
+        side: BorderSide.none,
+        shape: glassEdge(isDark, pillRadius),
         labelStyle: text.labelLarge?.copyWith(color: onSurface),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
@@ -607,7 +651,7 @@ extension AppColors on BuildContext {
   List<BoxShadow> get floatingShadow =>
       AppTheme.floatingShadow(Theme.of(this).brightness);
 
-  BoxDecoration glassSurface({
+  ShapeDecoration glassSurface({
     BorderRadius? radius,
     bool selected = false,
     bool floating = false,

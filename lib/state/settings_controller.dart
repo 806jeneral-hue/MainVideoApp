@@ -41,6 +41,7 @@ class SettingsController extends ChangeNotifier {
   String _accentKey = AccentPalette.defaultKey;
   String _backgroundImage = '';
   double _backgroundBlur = 14;
+  double _glassStrength = 0.5;
 
   // language
   String? _localeCode;
@@ -66,6 +67,7 @@ class SettingsController extends ChangeNotifier {
     _accentKey = _repo.accentKey;
     _backgroundImage = _repo.backgroundImage;
     _backgroundBlur = _repo.backgroundBlur;
+    _glassStrength = _repo.glassStrength;
     _localeCode = _repo.localeCode;
   }
 
@@ -98,6 +100,7 @@ class SettingsController extends ChangeNotifier {
   String? get backgroundImage =>
       _backgroundImage.isEmpty ? null : _backgroundImage;
   double get backgroundBlur => _backgroundBlur;
+  double get glassStrength => _glassStrength;
   Duration get seekStep => Duration(seconds: _seekSeconds);
 
   /// Null means the interface follows the device language.
@@ -213,6 +216,12 @@ class SettingsController extends ChangeNotifier {
     _backgroundBlur = value;
     notifyListeners();
     await _repo.setBackgroundBlur(value);
+  }
+
+  Future<void> setGlassStrength(double value) async {
+    _glassStrength = value;
+    notifyListeners();
+    await _repo.setGlassStrength(value);
   }
 
   Future<void> setSeekSeconds(int v) async {

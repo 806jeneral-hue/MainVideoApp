@@ -9,6 +9,9 @@ import 'data/services/thumbnail_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Thumbnails are small; holding more of them decoded means a long list can
+  // be scrolled back through without decoding the same covers again.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 140 << 20;
   await AppDatabase.init();
   // Opens the on-disk thumbnail cache so covers survive restarts instead of
   // being decoded from the video files again on every launch.

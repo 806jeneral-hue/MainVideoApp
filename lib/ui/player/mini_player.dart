@@ -61,9 +61,9 @@ class MiniPlayer extends StatelessWidget {
         (aboveNavigation ? AppBottomNav.outerHeight : 0) -
         _bottomGap;
     return Rect.fromLTRB(
-      AppTheme.pageMargin,
+      AppTheme.barMargin,
       bottom - height,
-      screen.width - AppTheme.pageMargin,
+      screen.width - AppTheme.barMargin,
       bottom,
     );
   }
@@ -117,9 +117,9 @@ class _MiniPlayerBar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppTheme.pageMargin,
+        AppTheme.barMargin,
         0,
-        AppTheme.pageMargin,
+        AppTheme.barMargin,
         MiniPlayer._bottomGap,
       ),
       child: _SwipeUpToOpen(

@@ -24,6 +24,7 @@ import 'collection_page.dart';
 import 'playlist_style_sheet.dart';
 import '../common/glass_controls.dart';
 import '../../core/theme/app_icons.dart';
+import '../common/emerge.dart';
 
 /// Folders and playlists live side by side here — phase 3 treats them as the
 /// same idea, with Favorites pinned at the top of the same list.
@@ -390,7 +391,9 @@ class _EntryList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       sliver: SliverList.builder(
         itemCount: entries.length,
-        itemBuilder: (context, index) => _EntryRow(entry: entries[index]),
+        addRepaintBoundaries: false,
+        itemBuilder: (context, index) =>
+            EmergeFromBottom(child: _EntryRow(entry: entries[index])),
       ),
     );
   }
@@ -416,7 +419,9 @@ class _EntryGrid extends StatelessWidget {
           childAspectRatio: 0.88,
         ),
         itemCount: entries.length,
-        itemBuilder: (context, index) => _EntryTile(entry: entries[index]),
+        addRepaintBoundaries: false,
+        itemBuilder: (context, index) =>
+            EmergeFromBottom(child: _EntryTile(entry: entries[index])),
       ),
     );
   }
