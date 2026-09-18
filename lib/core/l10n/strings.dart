@@ -1443,6 +1443,12 @@ extension ImprovementStrings on Strings {
   String get removeImage => _isArabic ? 'إزالة' : 'Remove';
   String get backgroundBlur => _isArabic ? 'درجة التمويه' : 'Blur';
   String get glassStrength => _isArabic ? 'شفافية الزجاج' : 'Glass';
+  String get appStyle => _isArabic ? 'الثيم' : 'Theme';
+  String get appStyleBody => _isArabic
+      ? 'شكل التطبيق كله. كل ثيم له وضع فاتح وداكن.'
+      : 'The look of the whole app. Each has a light and a dark mode.';
+  String get styleGlass => _isArabic ? 'زجاجي' : 'Glass';
+  String get styleSolid => _isArabic ? 'كلاسيك' : 'Classic';
   String get glassStrengthBody => _isArabic
       ? 'اسحب لتتحكم في مدى شفافية البطاقات والأزرار.'
       : 'Slide to set how see-through cards and buttons are.';

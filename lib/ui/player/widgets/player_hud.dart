@@ -6,6 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../state/playback_controller.dart';
 import '../../common/glass.dart';
 import '../../../core/theme/app_icons.dart';
+import 'player_glyphs.dart';
 
 /// The floating readout that appears while a gesture is changing volume,
 /// brightness, position or speed.
@@ -32,38 +33,109 @@ class _PlayerHudState extends State<PlayerHud> {
     final playback = context.read<PlaybackController>();
 
     return IgnorePointer(
-      child: ValueListenableBuilder<HudState?>(
-        valueListenable: playback.hud,
-        builder: (context, state, _) {
-          if (state != null) _last = state;
-          final shown = _last;
-          if (shown == null) return const SizedBox.shrink();
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _hud(playback),
+          _BoostPill(playback: playback),
+        ],
+      ),
+    );
+  }
 
-          final readout = switch (shown.kind) {
-            // Volume is swiped on the right, so it reads out on the left.
-            HudKind.volume => _Side(
-              alignment: Alignment.centerLeft,
-              child: _LevelBar(state: shown),
-            ),
-            // Brightness is swiped on the left, so it reads out on the right.
-            HudKind.brightness => _Side(
-              alignment: Alignment.centerRight,
-              child: _LevelBar(state: shown),
-            ),
-            // Seeking reads out in a small pill at the top, clear of the
-            // picture, instead of a box in the middle of it.
-            HudKind.seek => _SeekPill(state: shown, playback: playback),
-            _ => Center(
-              child: _HudBox(state: shown, playback: playback),
-            ),
-          };
+  Widget _hud(PlaybackController playback) {
+    return ValueListenableBuilder<HudState?>(
+      valueListenable: playback.hud,
+      builder: (context, state, _) {
+        if (state != null) _last = state;
+        final shown = _last;
+        if (shown == null) return const SizedBox.shrink();
 
-          return AnimatedOpacity(
-            opacity: state == null ? 0 : 1,
-            duration: const Duration(milliseconds: 160),
-            child: readout,
-          );
-        },
+        final readout = switch (shown.kind) {
+          // Volume is swiped on the right, so it reads out on the left.
+          HudKind.volume => _Side(
+            alignment: Alignment.centerLeft,
+            child: _LevelBar(state: shown),
+          ),
+          // Brightness is swiped on the left, so it reads out on the right.
+          HudKind.brightness => _Side(
+            alignment: Alignment.centerRight,
+            child: _LevelBar(state: shown),
+          ),
+          // Seeking reads out in a small pill at the top, clear of the
+          // picture, instead of a box in the middle of it.
+          HudKind.seek => _SeekPill(state: shown, playback: playback),
+          _ => Center(
+            child: _HudBox(state: shown, playback: playback),
+          ),
+        };
+
+        return AnimatedOpacity(
+          opacity: state == null ? 0 : 1,
+          duration: const Duration(milliseconds: 160),
+          child: readout,
+        );
+      },
+    );
+  }
+}
+
+/// Shown for as long as a finger holds the picture: the video is playing at
+/// double speed.
+class _BoostPill extends StatelessWidget {
+  const _BoostPill({required this.playback});
+
+  final PlaybackController playback;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: playback.boosting,
+      builder: (context, boosting, _) => AnimatedOpacity(
+        opacity: boosting ? 1 : 0,
+        duration: const Duration(milliseconds: 160),
+        child: AnimatedScale(
+          scale: boosting ? 1 : 0.9,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppTheme.space16),
+                child: GlassPanel(
+                  radius: AppTheme.pillRadius,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PlayerGlyph(
+                          PlayerGlyphKind.fastForward,
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppTheme.space8),
+                        Text(
+                          '${PlaybackController.boostSpeed.toStringAsFixed(0)}×',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -17,6 +17,9 @@ class AppDatabase {
   static const String musicFavoritesBox = 'music_favorites';
   static const String musicHistoryBox = 'music_history';
   static const String musicPlaylistsBox = 'music_playlists';
+  static const String stopMarkersBox = 'stop_markers';
+  static const String momentsBox = 'moments';
+  static const String playPlansBox = 'play_plans';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -30,6 +33,9 @@ class AppDatabase {
       Hive.openBox<int>(musicFavoritesBox),
       Hive.openBox<int>(musicHistoryBox),
       Hive.openBox<Map<dynamic, dynamic>>(musicPlaylistsBox),
+      Hive.openBox<Map<dynamic, dynamic>>(stopMarkersBox),
+      Hive.openBox<List<dynamic>>(momentsBox),
+      Hive.openBox<Map<dynamic, dynamic>>(playPlansBox),
     ]);
   }
 
@@ -50,6 +56,18 @@ class AppDatabase {
   static Box<int> get musicHistory => Hive.box<int>(musicHistoryBox);
   static Box<Map<dynamic, dynamic>> get musicPlaylists =>
       Hive.box<Map<dynamic, dynamic>>(musicPlaylistsBox);
+
+  /// One "I stopped here" marker per list — home, each folder, each
+  /// playlist — keyed by the list.
+  static Box<Map<dynamic, dynamic>> get stopMarkers =>
+      Hive.box<Map<dynamic, dynamic>>(stopMarkersBox);
+
+  /// Each video's saved moments, in milliseconds, keyed by video id.
+  static Box<List<dynamic>> get moments => Hive.box<List<dynamic>>(momentsBox);
+
+  /// The last custom play session of each list, keyed by the list.
+  static Box<Map<dynamic, dynamic>> get playPlans =>
+      Hive.box<Map<dynamic, dynamic>>(playPlansBox);
 }
 
 /// Every settings key in one place so nothing is stringly-typed twice.
@@ -105,6 +123,9 @@ class SettingsKeys {
   static const backgroundImage = 'backgroundImage';
   static const backgroundBlur = 'backgroundBlur';
   static const glassStrength = 'glassStrength';
+  static const appStyle = 'appStyle';
+  static const folderGrid = 'folderGrid';
+  static const quickMenuTipShown = 'quickMenuTipShown';
 
   // Music
   static const musicSort = 'musicSort';

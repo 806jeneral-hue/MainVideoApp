@@ -10,6 +10,7 @@ import 'data/repositories/favorites_repository.dart';
 import 'data/repositories/history_repository.dart';
 import 'data/repositories/playlist_repository.dart';
 import 'data/repositories/settings_repository.dart';
+import 'state/bookmark_controller.dart';
 import 'state/library_controller.dart';
 import 'state/music_controller.dart';
 import 'state/playback_controller.dart';
@@ -55,6 +56,8 @@ class MainVideoApp extends StatelessWidget {
         ),
         // The music library reads nothing until the Music tab is first opened.
         ChangeNotifierProvider(create: (_) => MusicController()),
+        // Stop markers and saved moments.
+        ChangeNotifierProvider(create: (_) => BookmarkController()),
         // One playback session for the whole app — this is what lets the mini
         // player survive leaving the player screen, and what guarantees a new
         // video replaces the old one instead of playing alongside it.
@@ -65,10 +68,18 @@ class MainVideoApp extends StatelessWidget {
               settings: context.read<SettingsController>(),
               library: library,
               music: context.read<MusicController>(),
+              bookmarks: context.read<BookmarkController>(),
             );
-            // Keeps whatever is playing in step with renames and deletions.
-            library.onVideoChanged = (oldId, replacement) => playback
-                .onLibraryVideoChanged(oldId: oldId, replacement: replacement);
+            final bookmarks = context.read<BookmarkController>();
+            // Keeps whatever is playing, and the user's marks, in step with
+            // renames and deletions.
+            library.onVideoChanged = (oldId, replacement) {
+              playback.onLibraryVideoChanged(
+                oldId: oldId,
+                replacement: replacement,
+              );
+              bookmarks.onVideoChanged(oldId, replacement?.id);
+            };
             // A song deleted from the Music tab leaves the queue the same way.
             context.read<MusicController>().onSongDeleted = (id) =>
                 playback.onLibraryVideoChanged(oldId: id);
@@ -83,6 +94,7 @@ class MainVideoApp extends StatelessWidget {
           Haptics.enabled = settings.hapticsEnabled;
           // Read while painting glass, so it cannot go through the theme.
           AppTheme.glassStrength = settings.glassStrength;
+          AppTheme.style = settings.appStyle;
 
           return MaterialApp(
             title: 'Main Video',

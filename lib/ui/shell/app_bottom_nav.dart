@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../common/glass.dart';
 import 'nav_glyphs.dart';
+import '../common/quick_menu.dart';
 
 class NavItem {
-  const NavItem({required this.glyph, required this.label});
+  const NavItem({required this.glyph, required this.label, this.onLongPress});
 
   final NavGlyphKind glyph;
+
+  /// Holding the tab: opens its quick menu from the button's rectangle.
+  final void Function(Rect anchor)? onLongPress;
 
   /// Not drawn — the bar is icons only — but still read out by TalkBack and
   /// shown on long press.
@@ -63,7 +67,9 @@ class AppBottomNav extends StatelessWidget {
             padding: const EdgeInsets.all(_inset),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final units = (items.length - 1) + _selectedWeight;
+                // The classic look has no capsule to widen: every tab is equal.
+                final weight = AppTheme.isSolid ? 1.0 : _selectedWeight;
+                final units = (items.length - 1) + weight;
                 final unit =
                     (constraints.maxWidth - _gap * (items.length - 1)) / units;
 
@@ -74,9 +80,7 @@ class AppBottomNav extends StatelessWidget {
                       _NavButton(
                         item: items[i],
                         selected: i == currentIndex,
-                        width: i == currentIndex
-                            ? unit * _selectedWeight
-                            : unit,
+                        width: i == currentIndex ? unit * weight : unit,
                         onTap: () => onSelected(i),
                       ),
                     ],
@@ -109,11 +113,14 @@ class _NavButton extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final height = AppBottomNav.barHeight - AppBottomNav._inset * 2;
+    final solid = AppTheme.isSolid;
 
     // Light: the current tab takes the accent. Dark: it lights up white, the
     // way the reference glass does; the others sit back, dimmed.
     final color = selected
-        ? (isDark ? theme.colorScheme.onSurface : theme.colorScheme.primary)
+        ? (isDark && !solid
+              ? theme.colorScheme.onSurface
+              : theme.colorScheme.primary)
         : theme.colorScheme.onSurface.withValues(alpha: isDark ? 0.45 : 0.40);
 
     return Semantics(
@@ -123,9 +130,16 @@ class _NavButton extends StatelessWidget {
       excludeSemantics: true,
       child: Tooltip(
         message: item.label,
+        // A tab with a quick menu keeps the long press for the menu.
+        triggerMode: item.onLongPress == null
+            ? null
+            : TooltipTriggerMode.manual,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
+          onLongPress: item.onLongPress == null
+              ? null
+              : () => item.onLongPress!(anchorOf(context)),
           child: PressScale(
             scale: 0.92,
             child: AnimatedContainer(
@@ -135,13 +149,13 @@ class _NavButton extends StatelessWidget {
               height: height,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(height / 2),
-                color: selected
+                color: selected && !solid
                     ? (isDark
                           ? Colors.white.withValues(alpha: 0.16)
                           : Colors.white.withValues(alpha: 0.72))
                     : Colors.transparent,
                 border: Border.all(
-                  color: selected
+                  color: selected && !solid
                       ? (isDark
                             ? Colors.white.withValues(alpha: 0.16)
                             : Colors.white)
@@ -149,14 +163,32 @@ class _NavButton extends StatelessWidget {
                 ),
               ),
               child: Center(
-                child: TweenAnimationBuilder<Color?>(
-                  tween: ColorTween(end: color),
-                  duration: const Duration(milliseconds: 220),
-                  builder: (context, value, _) => NavGlyph(
-                    kind: item.glyph,
-                    color: value ?? color,
-                    size: 28,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TweenAnimationBuilder<Color?>(
+                      tween: ColorTween(end: color),
+                      duration: const Duration(milliseconds: 220),
+                      builder: (context, value, _) => NavGlyph(
+                        kind: item.glyph,
+                        color: value ?? color,
+                        size: 28,
+                      ),
+                    ),
+                    if (solid) ...[
+                      const SizedBox(height: 5),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        width: selected ? 26 : 0,
+                        height: 3.5,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),

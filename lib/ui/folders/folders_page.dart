@@ -6,7 +6,6 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/playlist_style.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/models/enums.dart';
 import '../../data/models/playlist.dart';
 import '../../data/models/video.dart';
 import '../../data/models/video_folder.dart';
@@ -25,6 +24,8 @@ import 'playlist_style_sheet.dart';
 import '../common/glass_controls.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/emerge.dart';
+import '../common/app_icon.dart';
+import 'video_picker_page.dart';
 
 /// Folders and playlists live side by side here — phase 3 treats them as the
 /// same idea, with Favorites pinned at the top of the same list.
@@ -45,7 +46,7 @@ class FoldersPage extends StatelessWidget {
       );
     }
 
-    final isGrid = library.viewMode == ViewMode.grid;
+    final isGrid = library.foldersAsGrid;
     final playlists = library.playlists;
     final folders = library.folders;
 
@@ -103,12 +104,38 @@ class FoldersPage extends StatelessWidget {
         leadingWidth: SettingsButton.leadingWidth,
         title: Text(context.s.folders),
         actions: [
+          // A new playlist, as a plain plus beside the layout switch.
+          HeaderAction(
+            tooltip: context.s.newPlaylist,
+            highlighted: true,
+            icon: const AppIcon(AppIcons.add_rounded),
+            onPressed: () async {
+              final name = await promptForPlaylistName(context);
+              if (name == null || !context.mounted) return;
+              final playlist = await library.createPlaylist(name);
+              if (!context.mounted) return;
+              // Straight on to choosing its videos; backing out leaves it
+              // empty, to fill later.
+              final picked = await Navigator.of(context).push<List<String>>(
+                MaterialPageRoute(
+                  builder: (_) => VideoPickerPage(
+                    title: context.s.addToPlaylistTitle(playlist.name),
+                  ),
+                ),
+              );
+              if (picked != null && picked.isNotEmpty) {
+                await library.addToPlaylist(playlist.id, picked);
+              }
+              if (!context.mounted) return;
+              _open(context, CollectionPage.playlist(playlist.id));
+            },
+          ),
           HeaderAction(
             tooltip: isGrid ? context.s.listView : context.s.gridView,
             icon: Icon(
               isGrid ? AppIcons.view_list_rounded : AppIcons.grid_view_rounded,
             ),
-            onPressed: library.toggleViewMode,
+            onPressed: library.toggleFoldersLayout,
           ),
           HeaderAction(
             tooltip: context.s.chooseFoldersToScan,
@@ -117,23 +144,6 @@ class FoldersPage extends StatelessWidget {
           ),
           const SizedBox(width: 16),
         ],
-      ),
-      // This screen's Scaffold now runs the full height of the window, so the
-      // button has to be lifted clear of the navigation bar itself — the outer
-      // Scaffold owns that bar and cannot do it for us.
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-        child: GlassFab(
-          onPressed: () async {
-            final name = await promptForPlaylistName(context);
-            if (name == null || !context.mounted) return;
-            final playlist = await library.createPlaylist(name);
-            if (!context.mounted) return;
-            _open(context, CollectionPage.playlist(playlist.id));
-          },
-          icon: const Icon(AppIcons.add_rounded),
-          label: Text(context.s.newPlaylist),
-        ),
       ),
       body: RefreshIndicator(
         color: context.accent,

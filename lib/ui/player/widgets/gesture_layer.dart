@@ -272,6 +272,17 @@ class _GestureLayerState extends State<GestureLayer> {
         // Without a handler here onDoubleTapDown never fires.
         onDoubleTap: locked ? null : () {},
 
+        // Hold anywhere on the picture to race through at double speed; let
+        // go and it drops back to whatever speed was set.
+        onLongPressStart: locked
+            ? null
+            : (_) {
+                Haptics.light();
+                _player.startBoost();
+              },
+        onLongPressEnd: locked ? null : (_) => _player.endBoost(),
+        onLongPressCancel: locked ? null : _player.endBoost,
+
         onScaleStart: locked ? null : _onScaleStart,
         onScaleUpdate: locked ? null : _onScaleUpdate,
         onScaleEnd: locked ? null : _onScaleEnd,

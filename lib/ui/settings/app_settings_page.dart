@@ -21,6 +21,8 @@ import '../common/glass_controls.dart';
 import '../common/glass_snack_bar.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/default_backdrop.dart';
+import '../common/glass.dart';
+import '../../data/models/enums.dart';
 
 /// Phase 7 — the general settings screen that gathers appearance, history,
 /// and links out to the playback and folder screens.
@@ -75,6 +77,8 @@ class AppSettingsPage extends StatelessWidget {
               ),
             ],
           ),
+          SettingsSection(context.s.appStyle),
+          _StylePicker(settings: settings),
           SettingsSection(context.s.accentColor),
           Card(
             child: Padding(
@@ -105,7 +109,9 @@ class AppSettingsPage extends StatelessWidget {
               ),
             ),
           ),
-          _GlassCard(settings: settings),
+          // Only the glass look has glass to thin out.
+          if (settings.appStyle == AppStyle.glass)
+            _GlassCard(settings: settings),
           SettingsSection(context.s.backgroundImage),
           _BackgroundCard(settings: settings),
           SettingsSection(context.s.history),
@@ -311,6 +317,233 @@ class AppSettingsPage extends StatelessWidget {
 
 /// One colour in the accent picker.
 /// Background picture: a preview, choose / remove, and how soft it is.
+/// The two looks side by side, each as a small picture of itself.
+class _StylePicker extends StatelessWidget {
+  const _StylePicker({required this.settings});
+
+  final SettingsController settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.appStyleBody,
+              style: theme.textTheme.bodySmall?.copyWith(color: context.muted),
+            ),
+            const SizedBox(height: AppTheme.space12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StyleOption(
+                    label: s.styleGlass,
+                    selected: settings.appStyle == AppStyle.glass,
+                    preview: const _StylePreview(solid: false),
+                    onTap: () => settings.setAppStyle(AppStyle.glass),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.space12),
+                Expanded(
+                  child: _StyleOption(
+                    label: s.styleSolid,
+                    selected: settings.appStyle == AppStyle.solid,
+                    preview: const _StylePreview(solid: true),
+                    onTap: () => settings.setAppStyle(AppStyle.solid),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StyleOption extends StatelessWidget {
+  const _StyleOption({
+    required this.label,
+    required this.selected,
+    required this.preview,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Widget preview;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = context.accent;
+
+    return PressScale(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: selected ? accent : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: AspectRatio(aspectRatio: 0.78, child: preview),
+              ),
+            ),
+            const SizedBox(height: AppTheme.space8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (selected) ...[
+                  Icon(AppIcons.check_circle_rounded, size: 16, color: accent),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? theme.colorScheme.onSurface
+                        : context.muted,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A tiny drawing of a look — its page, a title, three rows and the bar — in
+/// the current light or dark mode, so the choice can be seen before it is made.
+class _StylePreview extends StatelessWidget {
+  const _StylePreview({required this.solid});
+
+  final bool solid;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = solid ? const Color(0xFFF2782B) : context.accent;
+
+    final page = solid
+        ? (isDark ? const Color(0xFF131417) : const Color(0xFFFAF5EF))
+        : (isDark ? const Color(0xFF151A28) : const Color(0xFFEEEAF1));
+    final card = solid
+        ? AppTheme.solidCard(isDark)
+        : Colors.white.withValues(alpha: isDark ? 0.10 : 0.55);
+    final edge = solid
+        ? Colors.transparent
+        : Colors.white.withValues(alpha: isDark ? 0.25 : 0.9);
+    final line = isDark
+        ? Colors.white.withValues(alpha: 0.28)
+        : Colors.black.withValues(alpha: 0.14);
+
+    Widget row({bool marked = false}) => Container(
+      height: 20,
+      margin: const EdgeInsets.only(bottom: 6),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: edge, width: 0.8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            color: marked && solid ? accent : Colors.transparent,
+          ),
+          const SizedBox(width: 4),
+          Expanded(child: Container(height: 3, color: line)),
+          const SizedBox(width: 6),
+          Container(
+            width: 20,
+            height: 13,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF3A3D45) : const Color(0xFFD8D2CC),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: page,
+        gradient: solid
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  page,
+                  Color.alphaBlend(accent.withValues(alpha: 0.25), page),
+                ],
+              ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (solid) ...[
+                  Container(width: 3, height: 10, color: accent),
+                  const SizedBox(width: 3),
+                ],
+                Container(width: 28, height: 5, color: line),
+                const Spacer(),
+                Container(
+                  width: 22,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            row(marked: true),
+            row(),
+            row(),
+            const Spacer(),
+            Container(
+              height: 14,
+              decoration: BoxDecoration(
+                color: card,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: edge, width: 0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// How solid the app's glass is, on a plain slider so it can be felt rather
 /// than picked from steps.
 class _GlassCard extends StatelessWidget {

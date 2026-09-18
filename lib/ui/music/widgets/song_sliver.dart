@@ -7,6 +7,7 @@ import '../../../state/playback_controller.dart';
 import '../music_actions.dart';
 import 'music_tiles.dart';
 import '../../common/emerge.dart';
+import '../song_selection.dart';
 
 /// A fixed-height list of songs. Only the rows whose "playing" mark changes
 /// rebuild when the track changes.
@@ -17,6 +18,7 @@ class SongSliver extends StatelessWidget {
     required this.title,
     this.playlistId,
     this.numbered = false,
+    this.selection,
   });
 
   final List<Song> songs;
@@ -27,6 +29,9 @@ class SongSliver extends StatelessWidget {
 
   /// Track numbers instead of covers, for an album.
   final bool numbered;
+
+  /// Set on pages that can tick several songs at once.
+  final SongSelection? selection;
 
   @override
   Widget build(BuildContext context) {
@@ -39,18 +44,28 @@ class SongSliver extends StatelessWidget {
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final song = songs[index];
+          final picking = selection?.active ?? false;
           return EmergeFromBottom(
             child: SongTile(
               song: song,
               isCurrent: song.id == currentId,
               leadingNumber: numbered ? index + 1 : null,
-              onTap: () =>
-                  playSongs(context, songs, index: index, title: title),
+              selectionMode: picking,
+              selected: selection?.contains(song.id) ?? false,
+              onLongPress: selection == null
+                  ? null
+                  : () => selection!.toggle(song.id),
+              onTap: picking
+                  ? () => selection!.toggle(song.id)
+                  : () => playSongs(context, songs, index: index, title: title),
               onMore: () => showSongActions(
                 context,
                 song,
                 playlistId: playlistId,
                 queueTitle: title,
+                onSelect: selection == null
+                    ? null
+                    : () => selection!.toggle(song.id),
               ),
             ),
           );

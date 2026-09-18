@@ -2,6 +2,7 @@ package com.mainvideo.main_video
 
 import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.media.MediaScannerConnection
@@ -61,6 +62,23 @@ class MainActivity : FlutterActivity() {
 
         musicLibrary = MusicLibrary(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         videoScrubbing = VideoScrubbing(flutterEngine)
+
+        // Landscape that follows the phone's sensor both ways, even with the
+        // system's rotation lock on: turning the phone over flips the video
+        // with it. Flutter's own landscape setting obeys the lock and would
+        // stay stuck on whichever side it started.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "main_video/orientation"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "sensorLandscape" -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // Refreshes Android's media index for files changed or removed directly,
         // so the gallery and other apps stop showing them — silently, with no

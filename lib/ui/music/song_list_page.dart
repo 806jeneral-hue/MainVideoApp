@@ -15,6 +15,12 @@ import 'widgets/album_art.dart';
 import 'widgets/music_tiles.dart';
 import 'widgets/song_sliver.dart';
 import '../../core/theme/app_icons.dart';
+import '../common/quick_menu.dart';
+import '../common/play_menus.dart';
+import 'song_selection.dart';
+import '../common/selection.dart';
+import 'song_picker_page.dart';
+import '../common/app_icon.dart';
 
 enum _Kind { album, artist, folder, playlist, favorites, recent }
 
@@ -107,74 +113,125 @@ class SongListPage extends StatelessWidget {
       if (totalMs > 0) Fmt.durationMs(totalMs),
     ].join('  ·  ');
 
-    return Scaffold(
-      extendBody: true,
-      appBar: AppBar(
-        actions: [
-          if (playlist != null)
-            HeaderAction(
-              tooltip: s.more,
-              icon: const Icon(AppIcons.more_vert_rounded),
-              onPressed: () => showMusicPlaylistActions(
-                context,
-                playlist!,
-                onDeleted: () {
-                  if (context.mounted) Navigator.of(context).maybePop();
-                },
-              ),
-            ),
-          const SizedBox(width: AppTheme.pageMargin),
-        ],
-      ),
-      bottomNavigationBar: const SafeArea(
-        top: false,
-        child: MiniPlayer(aboveNavigation: false),
-      ),
-      body: BottomFade(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: _Header(
-                cover: _kind == _Kind.favorites || _kind == _Kind.recent
-                    ? null
-                    : cover,
-                icon: icon,
-                title: title,
-                subtitle: subtitle,
-                round: _kind == _Kind.artist,
-              ),
-            ),
-            if (songs.isNotEmpty)
-              SliverToBoxAdapter(
-                child: PlayShuffleRow(
-                  onPlay: () =>
-                      playSongs(context, songs, shuffle: false, title: title),
-                  onShuffle: () =>
-                      playSongs(context, songs, shuffle: true, title: title),
-                ),
-              ),
-            if (albums.length > 1)
-              SliverToBoxAdapter(child: _AlbumStrip(albums: albums)),
-            if (songs.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: EmptyState(
-                  icon: icon,
-                  title: emptyTitle,
-                  message: emptyBody,
-                ),
+    // Holding a song ticks it; the bars change over while songs are ticked.
+    return SongSelectionScope(
+      builder: (context, selection) => Scaffold(
+        extendBody: true,
+        appBar: selection.active
+            ? buildSelectionAppBar(
+                context: context,
+                count: selection.count,
+                onClose: selection.clear,
+                onSelectAll: () =>
+                    selection.selectAll([for (final song in songs) song.id]),
               )
-            else
-              SongSliver(
-                songs: songs,
-                title: title,
-                playlistId: playlist?.id,
-                numbered: numbered,
+            : AppBar(
+                actions: [
+                  if (playlist != null)
+                    // More songs for this playlist, from the whole library.
+                    HeaderAction(
+                      tooltip: s.addToPlaylistTitle(playlist.name),
+                      highlighted: true,
+                      icon: const AppIcon(AppIcons.add_rounded),
+                      onPressed: () async {
+                        final target = playlist!;
+                        final picked = await Navigator.of(context)
+                            .push<List<String>>(
+                              MaterialPageRoute(
+                                builder: (_) => SongPickerPage(
+                                  title: s.addToPlaylistTitle(target.name),
+                                  excluded: {for (final song in songs) song.id},
+                                ),
+                              ),
+                            );
+                        if (picked != null && picked.isNotEmpty) {
+                          await music.addToPlaylist(target.id, picked);
+                        }
+                      },
+                    ),
+                  if (playlist != null)
+                    HeaderAction(
+                      tooltip: s.more,
+                      icon: const Icon(AppIcons.more_vert_rounded),
+                      onPressed: () => showMusicPlaylistActions(
+                        context,
+                        playlist!,
+                        onDeleted: () {
+                          if (context.mounted) Navigator.of(context).maybePop();
+                        },
+                      ),
+                    ),
+                  const SizedBox(width: AppTheme.pageMargin),
+                ],
               ),
-            SliverToBoxAdapter(
-              child: SizedBox(height: listBottomInset(context)),
-            ),
-          ],
+        bottomNavigationBar: selection.active
+            ? SongSelectionBar(
+                selected: selection.pick(songs),
+                onDone: selection.clear,
+                queueTitle: title,
+                playlistId: playlist?.id,
+              )
+            : const SafeArea(
+                top: false,
+                child: MiniPlayer(aboveNavigation: false),
+              ),
+        body: BottomFade(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _Header(
+                  cover: _kind == _Kind.favorites || _kind == _Kind.recent
+                      ? null
+                      : cover,
+                  icon: icon,
+                  title: title,
+                  subtitle: subtitle,
+                  round: _kind == _Kind.artist,
+                ),
+              ),
+              if (songs.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: PlayShuffleRow(
+                    onPlay: () =>
+                        playSongs(context, songs, shuffle: false, title: title),
+                    onShuffle: () =>
+                        playSongs(context, songs, shuffle: true, title: title),
+                    onPlayLongPress: (anchor) => showQuickMenu(
+                      context,
+                      anchor: anchor,
+                      actions: songPlayActions(
+                        context,
+                        planKey: 'music:${_kind.name}:$_key',
+                        songs: songs,
+                        title: title,
+                      ),
+                    ),
+                  ),
+                ),
+              if (albums.length > 1)
+                SliverToBoxAdapter(child: _AlbumStrip(albums: albums)),
+              if (songs.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyState(
+                    icon: icon,
+                    title: emptyTitle,
+                    message: emptyBody,
+                  ),
+                )
+              else
+                SongSliver(
+                  songs: songs,
+                  title: title,
+                  playlistId: playlist?.id,
+                  numbered: numbered,
+                  selection: selection,
+                ),
+              SliverToBoxAdapter(
+                child: SizedBox(height: listBottomInset(context)),
+              ),
+            ],
+          ),
         ),
       ),
     );

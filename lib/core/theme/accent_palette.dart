@@ -34,7 +34,17 @@ class AccentPalette {
 
   static const String defaultKey = 'sage';
 
+  /// The bright orange the solid look comes in.
+  static const String emberKey = 'ember';
+
   static const List<AccentOption> options = [
+    AccentOption(
+      key: 'ember',
+      onLight: Color(0xFFF2782B),
+      onDark: Color(0xFFFF8B3D),
+      washLight: Color(0xFFFDE6D5),
+      washDark: Color(0xFF3D2616),
+    ),
     AccentOption(
       key: 'sage',
       onLight: Color(0xFF2E7A6C),

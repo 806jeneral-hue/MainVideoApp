@@ -30,4 +30,51 @@ extension PlayerStrings on Strings {
     if (minutes == 2) return 'دقيقتين';
     return '$minutes دقايق';
   }
+
+  // The More menu's sections and tiles.
+  String get sectionPlayback => _ar ? 'التشغيل' : 'Playback';
+  String get sectionMarks => _ar ? 'العلامات' : 'Marks';
+  String get sectionVideo => _ar ? 'الفيديو' : 'Video';
+  String get switchOn => _ar ? 'شغّال' : 'On';
+  String get switchOff => _ar ? 'مقفول' : 'Off';
+  String get saveMomentShort => _ar ? 'احفظ لحظة' : 'Save moment';
+  String momentsShort(int count) =>
+      _ar ? 'الفهرس ($count)' : 'Moments ($count)';
+  String get tileFavorite => _ar ? 'المفضلة' : 'Favourite';
+  String get tilePlaylist => _ar ? 'لقائمة' : 'Playlist';
+  String get tileMove => _ar ? 'نقل' : 'Move';
+  String get tileRename => _ar ? 'تسمية' : 'Rename';
+  String get tileHide => _ar ? 'إخفاء' : 'Hide';
+  String get tileUnhide => _ar ? 'إظهار' : 'Unhide';
+  String get tileInfo => _ar ? 'معلومات' : 'Info';
+  String get tilePin => _ar ? 'تثبيت' : 'Pin';
+  String get tileRemoveFromList => _ar ? 'شيل من القائمة' : 'Remove';
+  String get tileMark => _ar ? 'علامة' : 'Mark';
+  String get tileMarked => _ar ? 'شيل العلامة' : 'Unmark';
+
+  // ------------------------------------------------ custom play sessions
+  String get planTitle => _ar ? 'تشغيل مخصص' : 'Custom play';
+  String get planOrderHint => _ar
+      ? 'هيشتغلوا بالترتيب ده — اسحب عشان ترتّب'
+      : 'They play in this order — drag to rearrange';
+  String get planEmpty => _ar
+      ? 'دوس على اللي عايزه يشتغل من تحت'
+      : 'Tap what you want to play below';
+  String get planRest =>
+      _ar ? 'الباقي — دوس عشان تضيف' : 'The rest — tap to add';
+  String get planClear => _ar ? 'مسح الاختيار' : 'Clear';
+  String get planRemove => _ar ? 'شيل' : 'Remove';
+  String get planStartEmpty =>
+      _ar ? 'اختار حاجة الأول' : 'Choose something first';
+  String planStart(String count, int plays) =>
+      _ar ? 'ابدأ · $count · $plays مرة' : 'Start · $count · $plays plays';
+  String planLast(String count, int plays) => _ar
+      ? 'آخر جلسة: $count · $plays مرة'
+      : 'Last time: $count · $plays plays';
+  String get continueLastVideo =>
+      _ar ? 'كمّل آخر فيديو' : 'Continue last video';
+  String get continueLastSong => _ar ? 'كمّل آخر أغنية' : 'Continue last song';
+  String get quickMenuTip => _ar
+      ? 'اضغط مطوّل على الرئيسية أو الموسيقى للاختصارات'
+      : 'Hold Home or Music for shortcuts';
 }

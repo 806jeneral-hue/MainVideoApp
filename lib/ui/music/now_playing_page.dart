@@ -19,6 +19,7 @@ import '../player/widgets/playback_sheets.dart';
 import 'widgets/album_art.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/app_icon.dart';
+import 'music_actions.dart';
 
 /// Opens the music player over whatever is on screen. Music keeps playing
 /// when it closes; the mini player takes over.
@@ -308,7 +309,7 @@ class _Body extends StatelessWidget {
           (constraints.maxHeight - chrome).clamp(120.0, double.infinity),
         );
 
-        return Column(
+        final page = Column(
           children: [
             const SizedBox(height: AppTheme.space8),
             Row(
@@ -349,6 +350,14 @@ class _Body extends StatelessWidget {
                   iconSize: 24,
                   tooltip: s.playingQueue,
                   onTap: () => showQueueSheet(context),
+                ),
+                const SizedBox(width: AppTheme.space8),
+                GlassCircleButton(
+                  icon: AppIcons.more_vert_rounded,
+                  size: 46,
+                  iconSize: 22,
+                  tooltip: s.more,
+                  onTap: () => showNowPlayingOptions(context, song),
                 ),
               ],
             ),
@@ -423,6 +432,13 @@ class _Body extends StatelessWidget {
             const _BottomActions(),
             const SizedBox(height: AppTheme.space16),
           ],
+        );
+        // Turned on its side the phone is shorter than the page: it scrolls
+        // instead of squeezing the cover away.
+        const tallest = chrome + 120;
+        if (constraints.maxHeight >= tallest) return page;
+        return SingleChildScrollView(
+          child: SizedBox(height: tallest, child: page),
         );
       },
     );

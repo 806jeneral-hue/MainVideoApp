@@ -23,6 +23,8 @@ import 'widgets/library_status_view.dart';
 import 'widgets/sort_sheet.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/app_icon.dart';
+import '../../state/bookmark_controller.dart';
+import '../../data/models/bookmark.dart';
 
 /// Quick filters standing in for the Recently Added / Recently Played
 /// sections of phase 6.
@@ -162,6 +164,9 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                     VideoSliver(
                       videos: videos,
                       viewMode: library.viewMode,
+                      marker: context.select<BookmarkController, StopMarker?>(
+                        (b) => b.markerFor(CollectionKey.home),
+                      ),
                       selectionMode: selectionMode,
                       selectedIds: selectedIds,
                       // Custom order only applies to the unfiltered, unsearched list.
@@ -199,6 +204,7 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                           queue: videos,
                           startIndex: index,
                           queueTitle: _titleFor(filter),
+                          collection: CollectionKey.home,
                         );
                       },
                       onMore: (video) {
@@ -214,8 +220,10 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                             queue: videos,
                             startIndex: videos.indexOf(video),
                             queueTitle: _titleFor(filter),
+                            collection: CollectionKey.home,
                           ),
                           onSelect: () => startSelection(video),
+                          collection: CollectionKey.home,
                         );
                       },
                     ),
@@ -442,7 +450,7 @@ class _FilterPill extends StatelessWidget {
           ? DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: AppTheme.pillRadius,
-                color: accent.withValues(alpha: 0.72),
+                color: accent.withValues(alpha: AppTheme.isSolid ? 1 : 0.72),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
                 boxShadow: [
                   BoxShadow(

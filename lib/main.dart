@@ -17,9 +17,8 @@ Future<void> main() async {
   // being decoded from the video files again on every launch.
   await ThumbnailService.init();
   unawaited(ThumbnailService.trimDisk());
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Every screen turns with the phone, following the system's own rotation
+  // setting.
+  await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   runApp(const MainVideoApp());
 }

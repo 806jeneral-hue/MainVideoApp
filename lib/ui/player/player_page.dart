@@ -9,9 +9,11 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/collection_prefs.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/video.dart';
 import '../../state/playback_controller.dart';
+import '../common/glass.dart';
 import '../common/tab_scroll.dart';
 import 'mini_player.dart';
 import 'widgets/gesture_layer.dart';
@@ -33,6 +35,17 @@ Future<void> openPlayer(
   /// Overrides the default shuffle setting for this queue only — used by
   /// Play All, which offers both orders.
   bool? shuffle,
+
+  /// The list the video was opened from, so a stop marker set in the player
+  /// belongs to it.
+  CollectionKey collection = CollectionKey.home,
+
+  /// Starts here instead of the resume point — continuing from a marker or a
+  /// saved moment.
+  Duration? startAt,
+
+  /// A custom session: how many times in a row each video plays, by id.
+  Map<String, int>? plays,
 }) async {
   if (queue.isEmpty) return;
 
@@ -56,6 +69,9 @@ Future<void> openPlayer(
     startIndex: startIndex,
     queueTitle: queueTitle,
     shuffle: shuffle,
+    collection: collection,
+    startAt: startAt,
+    plays: plays,
   );
 
   // Tapping a video from inside the player just swaps what is playing.
@@ -205,10 +221,52 @@ class PlayerRoute extends PageRoute<void> {
             : curved.drive(
                 Tween(begin: const Offset(0, 0.12), end: Offset.zero),
               ),
-        child: child,
+        child: _BlurWhenSettled(animation: animation, child: child),
       ),
     );
   }
+}
+
+/// Keeps the controls' frosting off while the page is sliding and fading in or
+/// out, and puts it back the moment it settles.
+class _BlurWhenSettled extends StatefulWidget {
+  const _BlurWhenSettled({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  State<_BlurWhenSettled> createState() => _BlurWhenSettledState();
+}
+
+class _BlurWhenSettledState extends State<_BlurWhenSettled> {
+  @override
+  void initState() {
+    super.initState();
+    widget.animation.addStatusListener(_onStatus);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BlurWhenSettled oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animation == widget.animation) return;
+    oldWidget.animation.removeStatusListener(_onStatus);
+    widget.animation.addStatusListener(_onStatus);
+  }
+
+  @override
+  void dispose() {
+    widget.animation.removeStatusListener(_onStatus);
+    super.dispose();
+  }
+
+  void _onStatus(AnimationStatus _) {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      GlassBlurGate(enabled: widget.animation.isCompleted, child: widget.child);
 }
 
 /// What the gesture layer and the minimise button use to shrink the player.
@@ -285,10 +343,8 @@ class _PlayerPageState extends State<PlayerPage>
     _playback.exitFullscreen();
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Back to following the phone, as the rest of the app does.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
   }
 
@@ -412,20 +468,24 @@ class _PlayerPageState extends State<PlayerPage>
           // The black around the video lives in the stage below, where it
           // can fade away as the player shrinks.
           backgroundColor: Colors.transparent,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              const _MorphStage(),
-              if (!isPip) ...[
-                const GestureLayer(),
-                const _FadeWhileMorphing(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [PlayerHud(), PlayerControls()],
+          // All the glass over the video reads the picture behind it once,
+          // together, rather than once per button.
+          body: BackdropGroup(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const _MorphStage(),
+                if (!isPip) ...[
+                  const GestureLayer(),
+                  const _FadeWhileMorphing(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [PlayerHud(), PlayerControls()],
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -448,7 +508,14 @@ class _FadeWhileMorphing extends StatelessWidget {
       child: child,
       builder: (context, morph, child) => IgnorePointer(
         ignoring: morph > 0,
-        child: Opacity(opacity: (1 - morph * 4).clamp(0.0, 1.0), child: child),
+        child: Opacity(
+          opacity: (1 - morph * 4).clamp(0.0, 1.0),
+          // No frosting while the controls are fading out with the swipe.
+          child: GlassBlurGate(
+            enabled: morph == 0 && GlassBlurGate.enabledOf(context),
+            child: child!,
+          ),
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../../common/glass.dart';
 import 'album_art.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../common/app_icon.dart';
+import '../../common/quick_menu.dart';
 
 /// Height of a [SongTile] including the gap under it, for fixed-extent lists.
 const double kSongTileExtent = 76;
@@ -21,11 +22,22 @@ class SongTile extends StatelessWidget {
     required this.onMore,
     this.isCurrent = false,
     this.leadingNumber,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onLongPress,
   });
 
   final Song song;
   final VoidCallback onTap;
   final VoidCallback onMore;
+
+  /// While songs are being ticked, a tap ticks and the menu steps aside.
+  final bool selectionMode;
+  final bool selected;
+
+  /// Holding a row: starts a selection when the list offers one, otherwise
+  /// opens the menu.
+  final VoidCallback? onLongPress;
 
   /// The song playing right now is marked in the accent.
   final bool isCurrent;
@@ -51,17 +63,27 @@ class SongTile extends StatelessWidget {
         height: kSongTileExtent - AppTheme.space8,
         child: GlassSurface(
           radius: BorderRadius.circular(20),
-          selected: isCurrent,
+          selected: isCurrent || selected,
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
               onTap: onTap,
-              onLongPress: onMore,
+              onLongPress: onLongPress ?? onMore,
               borderRadius: BorderRadius.circular(20),
               child: Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(10, 0, 2, 0),
                 child: Row(
                   children: [
+                    if (selectionMode) ...[
+                      Icon(
+                        selected
+                            ? AppIcons.check_circle_rounded
+                            : AppIcons.circle_outlined,
+                        color: selected ? context.accent : muted,
+                        size: 22,
+                      ),
+                      const SizedBox(width: AppTheme.space8),
+                    ],
                     if (leadingNumber != null)
                       SizedBox(
                         width: 48,
@@ -123,13 +145,16 @@ class SongTile extends StatelessWidget {
                         color: context.accent,
                         size: 20,
                       ),
-                    IconButton(
-                      onPressed: onMore,
-                      tooltip: s.more,
-                      icon: const Icon(AppIcons.more_vert),
-                      color: muted,
-                      iconSize: 20,
-                    ),
+                    if (selectionMode)
+                      const SizedBox(width: AppTheme.space12)
+                    else
+                      IconButton(
+                        onPressed: onMore,
+                        tooltip: s.more,
+                        icon: const Icon(AppIcons.more_vert),
+                        color: muted,
+                        iconSize: 20,
+                      ),
                   ],
                 ),
               ),
@@ -336,10 +361,14 @@ class PlayShuffleRow extends StatelessWidget {
     super.key,
     required this.onPlay,
     required this.onShuffle,
+    this.onPlayLongPress,
   });
 
   final VoidCallback onPlay;
   final VoidCallback onShuffle;
+
+  /// Holding Play All: its quick menu, from the button's rectangle.
+  final void Function(Rect anchor)? onPlayLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -355,10 +384,15 @@ class PlayShuffleRow extends StatelessWidget {
         children: [
           Expanded(
             child: PressScale(
-              child: FilledButton.icon(
-                onPressed: onPlay,
-                icon: const AppIcon(AppIcons.play_arrow_rounded),
-                label: Text(s.playAll),
+              child: Builder(
+                builder: (buttonContext) => FilledButton.icon(
+                  onPressed: onPlay,
+                  onLongPress: onPlayLongPress == null
+                      ? null
+                      : () => onPlayLongPress!(anchorOf(buttonContext)),
+                  icon: const AppIcon(AppIcons.play_arrow_rounded),
+                  label: Text(s.playAll),
+                ),
               ),
             ),
           ),

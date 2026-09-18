@@ -75,15 +75,7 @@ class TabHeader extends StatelessWidget {
                   padding: const EdgeInsetsDirectional.only(
                     start: AppTheme.space12,
                   ),
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+                  child: _Title(title),
                 ),
               ),
             ],
@@ -103,6 +95,51 @@ class TabHeader extends StatelessWidget {
                   )
                 : const SizedBox(width: double.infinity),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The tab's name, pushed to the far end of the row. The classic look marks
+/// it with a short accent bar in front, like a bookmark.
+class _Title extends StatelessWidget {
+  const _Title(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.end,
+      style: theme.textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+      ),
+    );
+    if (!AppTheme.isSolid) return text;
+
+    return Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        // The bar sits before the name in reading order, whatever the
+        // language: on the left of a Latin title.
+        textDirection: TextDirection.ltr,
+        children: [
+          Container(
+            width: 5,
+            height: 30,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: AppTheme.space12),
+          Flexible(child: text),
         ],
       ),
     );

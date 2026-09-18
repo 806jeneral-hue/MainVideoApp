@@ -16,6 +16,11 @@ import 'widgets/music_tiles.dart';
 import 'widgets/song_sliver.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/app_icon.dart';
+import '../common/quick_menu.dart';
+import '../common/play_menus.dart';
+import 'song_picker_page.dart';
+import 'song_selection.dart';
+import '../common/selection.dart';
 
 enum MusicSection { songs, albums, artists, folders, playlists }
 
@@ -62,45 +67,64 @@ class _MusicSectionPageState extends State<MusicSectionPage> {
       MusicSection.playlists => s.musicPlaylists,
     };
 
-    return Scaffold(
-      extendBody: true,
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (widget.section == MusicSection.songs)
-            HeaderAction(
-              tooltip: s.sortBy,
-              icon: const AppIcon(AppIcons.swap_vert_rounded),
-              onPressed: () => showMusicSortSheet(context),
-            ),
-          if (widget.section == MusicSection.playlists)
-            HeaderAction(
-              tooltip: s.newMusicPlaylist,
-              icon: const Icon(AppIcons.add_rounded),
-              onPressed: () => _createPlaylist(music),
-            ),
-          const SizedBox(width: AppTheme.pageMargin),
-        ],
-      ),
-      bottomNavigationBar: const SafeArea(
-        top: false,
-        child: MiniPlayer(aboveNavigation: false),
-      ),
-      body: BottomFade(
-        child: FastScroller(
-          controller: _scrollController,
-          bottomPadding: listBottomInset(context, extra: 0),
-          child: CustomScrollView(
+    // All songs can be ticked several at a time, like the videos.
+    return SongSelectionScope(
+      builder: (context, selection) => Scaffold(
+        extendBody: true,
+        appBar: selection.active
+            ? buildSelectionAppBar(
+                context: context,
+                count: selection.count,
+                onClose: selection.clear,
+                onSelectAll: () => selection.selectAll([
+                  for (final song in music.songs) song.id,
+                ]),
+              )
+            : AppBar(
+                title: Text(title),
+                actions: [
+                  if (widget.section == MusicSection.songs)
+                    HeaderAction(
+                      tooltip: s.sortBy,
+                      icon: const AppIcon(AppIcons.swap_vert_rounded),
+                      onPressed: () => showMusicSortSheet(context),
+                    ),
+                  if (widget.section == MusicSection.playlists)
+                    HeaderAction(
+                      tooltip: s.newMusicPlaylist,
+                      highlighted: true,
+                      icon: const AppIcon(AppIcons.add_rounded),
+                      onPressed: () => _createPlaylist(music),
+                    ),
+                  const SizedBox(width: AppTheme.pageMargin),
+                ],
+              ),
+        bottomNavigationBar: selection.active
+            ? SongSelectionBar(
+                selected: selection.pick(music.songs),
+                onDone: selection.clear,
+                queueTitle: s.songs,
+              )
+            : const SafeArea(
+                top: false,
+                child: MiniPlayer(aboveNavigation: false),
+              ),
+        body: BottomFade(
+          child: FastScroller(
             controller: _scrollController,
-            slivers: [
-              const SliverToBoxAdapter(
-                child: SizedBox(height: AppTheme.space8),
-              ),
-              ..._slivers(context, music),
-              SliverToBoxAdapter(
-                child: SizedBox(height: listBottomInset(context)),
-              ),
-            ],
+            bottomPadding: listBottomInset(context, extra: 0),
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: AppTheme.space8),
+                ),
+                ..._slivers(context, music, selection),
+                SliverToBoxAdapter(
+                  child: SizedBox(height: listBottomInset(context)),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -111,10 +135,24 @@ class _MusicSectionPageState extends State<MusicSectionPage> {
     final name = await promptForMusicPlaylistName(context);
     if (name == null || name.trim().isEmpty) return;
     final playlist = await music.createPlaylist(name);
+    if (!mounted) return;
+    final picked = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) =>
+            SongPickerPage(title: context.s.addToPlaylistTitle(playlist.name)),
+      ),
+    );
+    if (picked != null && picked.isNotEmpty) {
+      await music.addToPlaylist(playlist.id, picked);
+    }
     if (mounted) _open(SongListPage.playlist(playlist.id));
   }
 
-  List<Widget> _slivers(BuildContext context, MusicController music) {
+  List<Widget> _slivers(
+    BuildContext context,
+    MusicController music,
+    SongSelection selection,
+  ) {
     final s = context.s;
 
     switch (widget.section) {
@@ -128,12 +166,22 @@ class _MusicSectionPageState extends State<MusicSectionPage> {
                   playSongs(context, songs, shuffle: false, title: s.songs),
               onShuffle: () =>
                   playSongs(context, songs, shuffle: true, title: s.songs),
+              onPlayLongPress: (anchor) => showQuickMenu(
+                context,
+                anchor: anchor,
+                actions: songPlayActions(
+                  context,
+                  planKey: 'music:all',
+                  songs: songs,
+                  title: s.songs,
+                ),
+              ),
             ),
           ),
           SliverToBoxAdapter(
             child: MusicListLabel(text: s.songCount(songs.length)),
           ),
-          SongSliver(songs: songs, title: s.songs),
+          SongSliver(songs: songs, title: s.songs, selection: selection),
         ];
 
       case MusicSection.albums:

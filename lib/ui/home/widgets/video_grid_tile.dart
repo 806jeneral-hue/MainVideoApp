@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/video.dart';
 import '../../common/glass.dart';
+import '../../common/mark_ribbon.dart';
 import '../../common/video_thumbnail.dart';
 import '../../../core/theme/app_icons.dart';
 
@@ -21,6 +22,7 @@ class VideoGridTile extends StatelessWidget {
     this.isPinned = false,
     this.selectionMode = false,
     this.selected = false,
+    this.markedAtMs,
   });
 
   final Video video;
@@ -31,6 +33,9 @@ class VideoGridTile extends StatelessWidget {
   final bool isPinned;
   final bool selectionMode;
   final bool selected;
+
+  /// Set on the video marked as where the user stopped in this list.
+  final int? markedAtMs;
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +62,16 @@ class VideoGridTile extends StatelessWidget {
                         video: video,
                         width: constraints.maxWidth,
                         height: constraints.maxWidth * 9 / 16,
-                        showPlayGlyph: !selectionMode,
+                        showPlayGlyph: !selectionMode && !AppTheme.isSolid,
                         progress: progress,
                       ),
                     ),
+                    if (markedAtMs != null)
+                      Positioned(
+                        left: 10,
+                        top: 0,
+                        child: MarkRibbon(color: context.accent),
+                      ),
                     if (isPinned || isFavorite)
                       Positioned(
                         right: 7,

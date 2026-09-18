@@ -14,6 +14,10 @@ import '../common/tab_scroll.dart';
 import '../player/mini_player.dart';
 import 'app_bottom_nav.dart';
 import 'nav_glyphs.dart';
+import '../common/play_menus.dart';
+import '../../data/local/app_database.dart';
+import '../common/glass_snack_bar.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Bottom navigation: Home / Folders / Favorites / Music, with the mini player
 /// docked above it. Settings open from the gear in each tab's header.
@@ -50,10 +54,28 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     MusicPage(),
   ];
 
+  /// The quick menus open from a long press, which nothing on screen shows:
+  /// say so once, the first time the app opens with them.
+  void _tipOnce() {
+    final settings = AppDatabase.settings;
+    if (!mounted || settings.get(SettingsKeys.quickMenuTipShown) == true) {
+      return;
+    }
+    settings.put(SettingsKeys.quickMenuTipShown, true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      glassSnackBar(
+        icon: AppIcons.touch_app_rounded,
+        content: Text(context.s.quickMenuTip),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tipOnce());
 
     PipService.ensureWired();
     // Notification buttons and audio focus reach playback through here.
@@ -115,43 +137,56 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Lists run the full height of the screen and pass behind the floating
-      // bar, fading out as they reach it, instead of stopping above it.
-      extendBody: true,
-      body: IndexedStack(
-        index: _index,
-        children: [
-          for (var i = 0; i < _pages.length; i++)
-            if (_visited.contains(i))
-              TabScroll(controller: _scrollControllers[i], child: _pages[i])
-            else
-              const SizedBox.shrink(),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    // The navigation bar and the mini player frost the same list: one read
+    // of it serves both.
+    return BackdropGroup(
+      child: Scaffold(
+        // Lists run the full height of the screen and pass behind the floating
+        // bar, fading out as they reach it, instead of stopping above it.
+        extendBody: true,
+        body: IndexedStack(
+          index: _index,
           children: [
-            const MiniPlayer(),
-            AppBottomNav(
-              currentIndex: _index,
-              onSelected: _onTabSelected,
-              items: [
-                NavItem(glyph: NavGlyphKind.home, label: context.s.navHome),
-                NavItem(
-                  glyph: NavGlyphKind.folder,
-                  label: context.s.navFolders,
-                ),
-                NavItem(
-                  glyph: NavGlyphKind.heart,
-                  label: context.s.navFavorites,
-                ),
-                NavItem(glyph: NavGlyphKind.music, label: context.s.navMusic),
-              ],
-            ),
+            for (var i = 0; i < _pages.length; i++)
+              if (_visited.contains(i))
+                TabScroll(controller: _scrollControllers[i], child: _pages[i])
+              else
+                const SizedBox.shrink(),
           ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MiniPlayer(),
+              AppBottomNav(
+                currentIndex: _index,
+                onSelected: _onTabSelected,
+                items: [
+                  NavItem(
+                    glyph: NavGlyphKind.home,
+                    label: context.s.navHome,
+                    onLongPress: (anchor) => showHomeQuickMenu(context, anchor),
+                  ),
+                  NavItem(
+                    glyph: NavGlyphKind.folder,
+                    label: context.s.navFolders,
+                  ),
+                  NavItem(
+                    glyph: NavGlyphKind.heart,
+                    label: context.s.navFavorites,
+                  ),
+                  NavItem(
+                    glyph: NavGlyphKind.music,
+                    label: context.s.navMusic,
+                    onLongPress: (anchor) =>
+                        showMusicQuickMenu(context, anchor),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

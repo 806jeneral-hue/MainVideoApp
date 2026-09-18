@@ -47,10 +47,13 @@ class _GlassToast extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         child: BackdropFilter(
+          enabled: !AppTheme.isSolid,
           filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: isDark
+              color: AppTheme.isSolid
+                  ? AppTheme.solidCard(isDark)
+                  : isDark
                   ? Colors.white.withValues(alpha: 0.12)
                   : Colors.white.withValues(alpha: 0.62),
               borderRadius: radius,

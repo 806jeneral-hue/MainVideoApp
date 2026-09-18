@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'tab_scroll.dart';
+import '../shell/app_bottom_nav.dart';
 
 /// Room left under a list's last item, so it can scroll clear of the bars and
 /// be read at full size above them.
@@ -68,6 +70,16 @@ class _AboveTheGap extends CustomClipper<Rect> {
   @override
   bool shouldReclip(_AboveTheGap oldClipper) => oldClipper.strip != strip;
 }
+
+/// What always sits at the foot of the screen: the navigation bar on a tab,
+/// nothing on a page opened over the tabs, plus the phone's own inset.
+///
+/// Unlike the Scaffold's padding it leaves the mini player out, so a list
+/// keeps its rows exactly as they are when the mini player comes and goes —
+/// the mini player simply floats over the last one.
+double steadyBottomInset(BuildContext context) =>
+    SystemBottomInset.of(context) +
+    (TabScroll.isTab(context) ? AppBottomNav.outerHeight : 0);
 
 /// Bottom padding that lets the last item scroll all the way clear of the
 /// bars, so it can be seen at full strength above them.

@@ -13,6 +13,7 @@ import 'package:volume_controller/volume_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../core/utils/formatters.dart';
+import '../data/models/collection_prefs.dart';
 import '../data/models/enums.dart';
 import '../data/models/playable.dart';
 import '../data/models/song.dart';
@@ -21,6 +22,7 @@ import '../data/services/album_art_service.dart';
 import '../data/services/background_audio_service.dart';
 import '../data/services/pip_service.dart';
 import '../data/services/thumbnail_service.dart';
+import 'bookmark_controller.dart';
 import 'library_controller.dart';
 import 'music_controller.dart';
 import 'settings_controller.dart';
@@ -60,13 +62,37 @@ class PlaybackController extends ChangeNotifier {
     required SettingsController settings,
     required LibraryController library,
     required MusicController music,
+    required BookmarkController bookmarks,
   }) : _settings = settings,
        _library = library,
-       _music = music;
+       _music = music,
+       _bookmarks = bookmarks;
 
   final SettingsController _settings;
   final LibraryController _library;
   final MusicController _music;
+  final BookmarkController _bookmarks;
+
+  /// The list this session was started from — home, a folder, a playlist —
+  /// so a stop marker set in the player lands on that list.
+  CollectionKey _collection = CollectionKey.home;
+  CollectionKey get collection => _collection;
+
+  /// Where the first video should start instead of its resume point: set by
+  /// "continue from the marker", used once.
+  Duration? _startAt;
+
+  /// How many times in a row each item plays in a custom session, by id.
+  /// Anything not listed plays once.
+  Map<String, int> _plays = const {};
+
+  /// Plays of the current item already finished, in this run of it.
+  int _playsDone = 0;
+
+  int playsFor(Playable item) => _plays[item.id] ?? 1;
+
+  /// Which play of its run the current item is on, from 1.
+  int get currentPlay => _playsDone + 1;
 
   VideoPlayerController? _vp;
 
@@ -200,9 +226,15 @@ class PlaybackController extends ChangeNotifier {
     required int startIndex,
     String queueTitle = '',
     bool? shuffle,
+    CollectionKey collection = CollectionKey.home,
+    Duration? startAt,
+    Map<String, int>? plays,
   }) async {
     if (queue.isEmpty) return;
 
+    _collection = collection;
+    _startAt = startAt;
+    _plays = plays ?? const {};
     _queue = List<Playable>.from(queue);
     _queueTitle = queueTitle;
     _hasSession = true;
@@ -210,6 +242,8 @@ class PlaybackController extends ChangeNotifier {
     _shuffle = shuffle ?? _settings.shuffle;
     _loopMode = _settings.loopMode;
     _speed = _settings.defaultSpeed;
+    // A custom session plays straight through, as it was laid out.
+    if (_plays.isNotEmpty) _loopMode = LoopMode.off;
     _buildOrder();
     await _load(_index);
   }
@@ -445,6 +479,10 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const MethodChannel _orientationChannel = MethodChannel(
+    'main_video/orientation',
+  );
+
   Future<void> applyOrientation() async {
     await SystemChrome.setPreferredOrientations(switch (_forcedOrientation) {
       Orientation.landscape => const [
@@ -457,6 +495,17 @@ class PlaybackController extends ChangeNotifier {
       ],
       null => DeviceOrientation.values,
     });
+    // Flutter's landscape keeps to one side while the rotation lock is on;
+    // this lets it follow the phone when it is turned the other way round.
+    if (_forcedOrientation == Orientation.landscape) {
+      try {
+        await _orientationChannel.invokeMethod<void>('sensorLandscape');
+      } on PlatformException {
+        // Older builds without the channel keep Flutter's own behaviour.
+      } on MissingPluginException {
+        // Same.
+      }
+    }
   }
 
   void setDismissDrag(double value) =>
@@ -497,6 +546,10 @@ class PlaybackController extends ChangeNotifier {
     morph.value = 0;
     await _restoreBrightness();
     notifyListeners();
+    if (_historyChangedUnseen) {
+      _historyChangedUnseen = false;
+      _library.notifyHistoryChanged();
+    }
   }
 
   // -------------------------------------------------------------------- setup
@@ -543,6 +596,7 @@ class PlaybackController extends ChangeNotifier {
     _pointA = null;
     _pointB = null;
     _index = newIndex;
+    _playsDone = 0;
     notifyListeners();
 
     await old?.dispose();
@@ -581,9 +635,14 @@ class PlaybackController extends ChangeNotifier {
     await controller.setPlaybackSpeed(_speed);
     await controller.setLooping(false);
 
+    // A marker or a saved moment says exactly where to start.
+    final startAt = _startAt;
+    _startAt = null;
     // Videos pick up where they were left; songs start from the top, the way
     // music players do.
-    if (_settings.resumePlayback && !item.isAudio) {
+    if (startAt != null && !item.isAudio) {
+      await controller.seekTo(startAt);
+    } else if (_settings.resumePlayback && !item.isAudio) {
       final resumeMs = _library.resumePositionMs(item.id);
       if (resumeMs > 2000 && resumeMs < item.durationMs - 3000) {
         await controller.seekTo(Duration(milliseconds: resumeMs));
@@ -610,7 +669,16 @@ class PlaybackController extends ChangeNotifier {
     );
   }
 
-  Future<void> _savePosition({bool notify = true}) async {
+  /// Set when a resume point was saved without telling the screens, because
+  /// the player was covering them. They catch up when it closes.
+  bool _historyChangedUnseen = false;
+
+  Future<void> _savePosition({bool? notify}) async {
+    // While the full-screen player is up, the library screens underneath are
+    // hidden: rebuilding them on every pause or skip only costs the player
+    // frames. They are brought up to date once, as the player closes.
+    final announce = notify ?? !_fullscreen;
+    if (!announce) _historyChangedUnseen = true;
     final controller = _vp;
     if (controller == null || !controller.value.isInitialized) return;
     if (_queue.isEmpty) return;
@@ -623,7 +691,7 @@ class PlaybackController extends ChangeNotifier {
       videoId: _queue[_index].id,
       positionMs: controller.value.position.inMilliseconds,
       durationMs: total,
-      notify: notify,
+      notify: announce,
     );
   }
 
@@ -666,7 +734,20 @@ class PlaybackController extends ChangeNotifier {
         videoId: current.id,
         positionMs: duration.inMilliseconds,
         durationMs: duration.inMilliseconds,
+        // The screens underneath catch up when the player closes.
+        notify: !_fullscreen,
       );
+      if (_fullscreen) _historyChangedUnseen = true;
+    }
+
+    // A custom session: the same item again from the top until its count is
+    // reached, then on to the next.
+    if (_playsDone + 1 < playsFor(current)) {
+      _playsDone++;
+      await _vp?.seekTo(Duration.zero);
+      await _vp?.play();
+      notifyListeners();
+      return;
     }
 
     if (_loopMode == LoopMode.one) {
@@ -886,6 +967,61 @@ class PlaybackController extends ChangeNotifier {
   /// Hides the controls at once: a swipe on the video shows only its own
   /// readout, not the buttons, title and seek bar.
   void hideControlsNow() => _hideControls();
+
+  // ---------------------------------------------------------------- marks
+  /// Marks where the user is — this video, this second — as the place they
+  /// stopped in the list the session came from.
+  Future<void> markStopHere() async {
+    final item = currentOrNull;
+    if (item == null || item.isAudio) return;
+    await _bookmarks.setMarker(
+      _collection,
+      videoId: item.id,
+      positionMs: position.inMilliseconds,
+    );
+  }
+
+  /// Saves [at] — by default this second — to the video's index of moments,
+  /// with the user's note. False when one is already saved right there.
+  Future<bool> addMomentHere({Duration? at, String note = ''}) async {
+    final item = currentOrNull;
+    if (item == null || item.isAudio) return false;
+    return _bookmarks.addMoment(
+      item.id,
+      (at ?? position).inMilliseconds,
+      note: note,
+    );
+  }
+
+  /// True while a finger is held on the picture and the video is racing at
+  /// double speed. The chosen speed is left alone, so letting go returns to it.
+  final ValueNotifier<bool> boosting = ValueNotifier<bool>(false);
+  static const double boostSpeed = 2.0;
+  bool _boostStartedPlayback = false;
+
+  /// Plays at [boostSpeed] until [endBoost]. A paused video plays for as long
+  /// as the finger stays down and pauses again after.
+  Future<void> startBoost() async {
+    final controller = _vp;
+    if (controller == null || boosting.value || current.isAudio) return;
+    boosting.value = true;
+    _hideControls();
+    await controller.setPlaybackSpeed(boostSpeed);
+    _boostStartedPlayback = !controller.value.isPlaying;
+    if (_boostStartedPlayback) await controller.play();
+  }
+
+  Future<void> endBoost() async {
+    if (!boosting.value) return;
+    boosting.value = false;
+    final controller = _vp;
+    if (controller == null) return;
+    await controller.setPlaybackSpeed(_speed);
+    if (_boostStartedPlayback) {
+      _boostStartedPlayback = false;
+      await controller.pause();
+    }
+  }
 
   Future<void> setSpeed(double value) async {
     _speed = value;
@@ -1168,6 +1304,7 @@ class PlaybackController extends ChangeNotifier {
     dismissDrag.dispose();
     scrubPosition.dispose();
     hud.dispose();
+    boosting.dispose();
     super.dispose();
   }
 }

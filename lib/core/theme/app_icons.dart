@@ -61,6 +61,10 @@ abstract final class AppIcons {
     fontFamily: _fill,
   );
   static const IconData cancel_rounded = IconData(0xe4f8, fontFamily: _fill);
+  static const IconData instagram_logo = IconData(0xe2d0, fontFamily: _fill);
+  static const IconData play_box = IconData(0xe4fc, fontFamily: _fill);
+  static const IconData remove_rounded = IconData(0xe32a, fontFamily: _fill);
+  static const IconData touch_app_rounded = IconData(0xec90, fontFamily: _fill);
   static const IconData check_circle_rounded = IconData(
     0xe184,
     fontFamily: _fill,

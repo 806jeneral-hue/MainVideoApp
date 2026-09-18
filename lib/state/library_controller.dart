@@ -42,6 +42,8 @@ class LibraryController extends ChangeNotifier {
        _playlists = playlists,
        _prefs = collectionPrefs {
     _viewMode = _settings.viewMode;
+    // Folders keep their own layout; the first time, they follow the videos.
+    _foldersAsGrid = _settings.folderGrid ?? (_viewMode == ViewMode.grid);
     _scanFolders = _settings.scanFolders;
     _hiddenFolders = _settings.hiddenFolders;
     _pinnedVideos = _settings.pinnedVideos.toSet();
@@ -220,6 +222,10 @@ class LibraryController extends ChangeNotifier {
 
   List<Video> get recentlyPlayed =>
       _recentlyPlayedCache ??= _computeRecentlyPlayed();
+
+  /// The video watched most recently, or null with no history.
+  String? get lastPlayedId =>
+      recentlyPlayed.isEmpty ? null : recentlyPlayed.first.id;
 
   List<Video> _computeRecentlyPlayed() {
     final records = _historyById.values.toList()
@@ -421,6 +427,17 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> toggleViewMode() => setViewMode(nextViewMode);
 
+  /// The Folders tab has just two layouts, list and cards, kept apart from the
+  /// video lists' three so switching one never changes the other.
+  bool _foldersAsGrid = false;
+  bool get foldersAsGrid => _foldersAsGrid;
+
+  Future<void> toggleFoldersLayout() async {
+    _foldersAsGrid = !_foldersAsGrid;
+    notifyListeners();
+    await _settings.setFolderGrid(_foldersAsGrid);
+  }
+
   /// The layout after the current one: list, then compact list, then grid.
   ViewMode get nextViewMode =>
       ViewMode.values[(_viewMode.index + 1) % ViewMode.values.length];
@@ -589,6 +606,10 @@ class LibraryController extends ChangeNotifier {
     _invalidateHistoryDerived();
     if (notify) notifyListeners();
   }
+
+  /// Tells the screens about resume points saved silently while the player
+  /// was covering them.
+  void notifyHistoryChanged() => notifyListeners();
 
   Future<void> clearHistory() async {
     await _history.clear();

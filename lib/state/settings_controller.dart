@@ -42,6 +42,7 @@ class SettingsController extends ChangeNotifier {
   String _backgroundImage = '';
   double _backgroundBlur = 14;
   double _glassStrength = 0.5;
+  AppStyle _appStyle = AppStyle.glass;
 
   // language
   String? _localeCode;
@@ -68,6 +69,7 @@ class SettingsController extends ChangeNotifier {
     _backgroundImage = _repo.backgroundImage;
     _backgroundBlur = _repo.backgroundBlur;
     _glassStrength = _repo.glassStrength;
+    _appStyle = _repo.appStyle;
     _localeCode = _repo.localeCode;
   }
 
@@ -101,6 +103,7 @@ class SettingsController extends ChangeNotifier {
       _backgroundImage.isEmpty ? null : _backgroundImage;
   double get backgroundBlur => _backgroundBlur;
   double get glassStrength => _glassStrength;
+  AppStyle get appStyle => _appStyle;
   Duration get seekStep => Duration(seconds: _seekSeconds);
 
   /// Null means the interface follows the device language.
@@ -216,6 +219,17 @@ class SettingsController extends ChangeNotifier {
     _backgroundBlur = value;
     notifyListeners();
     await _repo.setBackgroundBlur(value);
+  }
+
+  /// Switches the look of the app. The solid look arrives in its own orange;
+  /// any accent can still be picked afterwards.
+  Future<void> setAppStyle(AppStyle style) async {
+    if (_appStyle == style) return;
+    _appStyle = style;
+    if (style == AppStyle.solid) _accentKey = AccentPalette.emberKey;
+    notifyListeners();
+    await _repo.setAppStyle(style);
+    if (style == AppStyle.solid) await _repo.setAccentKey(_accentKey);
   }
 
   Future<void> setGlassStrength(double value) async {

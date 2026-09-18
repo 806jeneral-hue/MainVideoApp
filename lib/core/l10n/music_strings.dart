@@ -128,4 +128,16 @@ extension MusicStrings on Strings {
   String get noSongsFoundBody => _ar
       ? 'الأغاني اللي تحمّلها أو تنقلها للموبايل هتظهر هنا.'
       : 'Songs you download or copy to the phone will show up here.';
+
+  // ---------------------------------------------- the music player's menu
+  String get sectionSong => _ar ? 'الأغنية' : 'Song';
+  String get tileAlbum => _ar ? 'الألبوم' : 'Album';
+  String get tileArtist => _ar ? 'الفنان' : 'Artist';
+  String get tileQueue => _ar ? 'الطابور' : 'Queue';
+  String get playNextShort => _ar ? 'التالي' : 'Next';
+  String deleteSongsTitle(int count) =>
+      _ar ? 'حذف $count أغنية؟' : 'Delete $count songs?';
+  String get deleteSongsBody => _ar
+      ? 'هتتمسح من الجهاز نهائيًا.'
+      : 'They will be removed from the device for good.';
 }

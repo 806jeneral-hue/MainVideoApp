@@ -21,6 +21,10 @@ import '../common/glass_dialog.dart';
 import '../common/glass_controls.dart';
 import '../common/glass_snack_bar.dart';
 import '../../core/theme/app_icons.dart';
+import '../common/quick_tiles.dart';
+import '../../core/utils/formatters.dart';
+import '../../data/models/enums.dart';
+import '../player/widgets/playback_sheets.dart';
 
 /// Plays [songs] starting at [index] and opens the music player over the
 /// screen. [shuffle] plays them in a random order starting from a random
@@ -31,6 +35,9 @@ Future<void> playSongs(
   int index = 0,
   bool? shuffle,
   String title = '',
+
+  /// A custom session: how many times in a row each song plays, by id.
+  Map<String, int>? plays,
 }) {
   if (songs.isEmpty) return Future.value();
   _askForNotificationsOnce();
@@ -40,6 +47,7 @@ Future<void> playSongs(
     startIndex: start,
     queueTitle: title,
     shuffle: shuffle,
+    plays: plays,
   );
   // The queue is registered synchronously, so the player can open straight
   // away and show the song while it loads.
@@ -71,6 +79,9 @@ Future<void> showSongActions(
   Song song, {
   String? playlistId,
   String queueTitle = '',
+
+  /// Starts ticking songs, with this one ticked.
+  VoidCallback? onSelect,
 }) {
   final music = context.read<MusicController>();
   final playback = context.read<PlaybackController>();
@@ -137,6 +148,8 @@ Future<void> showSongActions(
               ),
             ),
             const SizedBox(height: AppTheme.space8),
+            if (onSelect != null)
+              action(AppIcons.checklist_rounded, s.select, onSelect),
             action(AppIcons.queue_play_next_rounded, s.playNext, () {
               playback.playNext([song], queueTitle: queueTitle);
               toast(s.willPlayNext);
@@ -421,6 +434,168 @@ Future<void> showMusicPlaylistActions(
           const SizedBox(height: AppTheme.space8),
         ],
       ),
+    ),
+  );
+}
+
+/// Everything that can be done while a song is playing, laid out like the
+/// video player's More menu: playback settings as tiles, the song's own
+/// actions as tiles, and delete on its own at the foot.
+Future<void> showNowPlayingOptions(BuildContext context, Song song) {
+  final rootNavigator = Navigator.of(context, rootNavigator: true);
+  final s = context.s;
+
+  // Leaves the music player for a list page: the song keeps playing in the
+  // mini player underneath.
+  void openPage(BuildContext sheetContext, Widget page) {
+    Navigator.pop(sheetContext);
+    rootNavigator
+      ..maybePop()
+      ..push(MaterialPageRoute<void>(builder: (_) => page));
+  }
+
+  return showAppSheet<void>(
+    context,
+    builder: (sheetContext) => Consumer2<PlaybackController, MusicController>(
+      builder: (sheetContext, playback, music, _) {
+        final theme = Theme.of(sheetContext);
+        final sleeping = playback.sleepRemaining;
+        final favorite = music.isFavorite(song.id);
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    AlbumArt(song: song, size: 52),
+                    const SizedBox(width: AppTheme.space12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          Text(
+                            song.artist.isEmpty ? s.unknownArtist : song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: sheetContext.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SheetSectionLabel(s.sectionPlayback),
+                TileGrid(
+                  tiles: [
+                    QuickTile(
+                      icon: AppIcons.speed_rounded,
+                      label: s.playbackSpeed,
+                      value: Fmt.speed(playback.speed),
+                      active: playback.speed != 1.0,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        showSpeedSheet(context);
+                      },
+                    ),
+                    QuickTile(
+                      icon: AppIcons.bedtime_outlined,
+                      label: s.sleepTimer,
+                      value: sleeping == null ? '—' : Fmt.duration(sleeping),
+                      active: sleeping != null,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        showSleepTimerSheet(context);
+                      },
+                    ),
+                    QuickTile(
+                      icon: switch (playback.loopMode) {
+                        LoopMode.one => AppIcons.repeat_one_rounded,
+                        _ => AppIcons.repeat_rounded,
+                      },
+                      label: s.repeat,
+                      value: playback.loopMode.label(s),
+                      active: playback.loopMode != LoopMode.off,
+                      onTap: playback.cycleLoopMode,
+                    ),
+                    QuickTile(
+                      icon: AppIcons.shuffle_rounded,
+                      label: s.shuffle,
+                      value: playback.shuffle ? s.switchOn : s.switchOff,
+                      active: playback.shuffle,
+                      onTap: playback.toggleShuffle,
+                    ),
+                    QuickTile(
+                      icon: AppIcons.queue_music_rounded,
+                      label: s.tileQueue,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        showQueueSheet(context);
+                      },
+                    ),
+                  ],
+                ),
+                SheetSectionLabel(s.sectionSong),
+                TileGrid(
+                  tiles: [
+                    QuickTile(
+                      icon: favorite
+                          ? AppIcons.favorite_rounded
+                          : AppIcons.favorite_border_rounded,
+                      label: s.tileFavorite,
+                      active: favorite,
+                      onTap: () => music.toggleFavorite(song.id),
+                    ),
+                    QuickTile(
+                      icon: AppIcons.playlist_add_rounded,
+                      label: s.tilePlaylist,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        showAddToMusicPlaylistSheet(context, [song]);
+                      },
+                    ),
+                    QuickTile(
+                      icon: AppIcons.album_outlined,
+                      label: s.tileAlbum,
+                      onTap: () => openPage(
+                        sheetContext,
+                        SongListPage.album(song.albumKey),
+                      ),
+                    ),
+                    QuickTile(
+                      icon: AppIcons.person_outline_rounded,
+                      label: s.tileArtist,
+                      onTap: () => openPage(
+                        sheetContext,
+                        SongListPage.artist(song.artist),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                DangerRow(
+                  label: s.deleteSong,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _confirmDelete(context, song);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     ),
   );
 }

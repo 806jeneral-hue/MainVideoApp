@@ -194,6 +194,26 @@ class SettingsRepository {
   Future<void> setBackgroundBlur(double value) =>
       _set(SettingsKeys.backgroundBlur, value);
 
+  /// Whether the Folders tab shows cards. Null until first chosen.
+  bool? get folderGrid {
+    final value = AppDatabase.settings.get(SettingsKeys.folderGrid);
+    return value is bool ? value : null;
+  }
+
+  Future<void> setFolderGrid(bool value) =>
+      _set(SettingsKeys.folderGrid, value);
+
+  AppStyle get appStyle {
+    final name = _get<String>(SettingsKeys.appStyle, AppStyle.glass.name);
+    return AppStyle.values.firstWhere(
+      (style) => style.name == name,
+      orElse: () => AppStyle.glass,
+    );
+  }
+
+  Future<void> setAppStyle(AppStyle style) =>
+      _set(SettingsKeys.appStyle, style.name);
+
   /// How solid the glass is, from 0 (barely there) to 1 (milky).
   double get glassStrength =>
       _get<num>(SettingsKeys.glassStrength, 0.5).toDouble();

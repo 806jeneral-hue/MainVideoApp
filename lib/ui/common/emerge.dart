@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'bottom_fade.dart';
 
 /// Shrinks a list item away as it slides under the floating bottom bars.
 ///
@@ -22,14 +23,14 @@ class EmergeFromBottom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    // With `extendBody: true` the Scaffold reports the height of the bottom
-    // bars in the padding, so this is where their top edge sits.
-    if (media.padding.bottom <= 0) return child;
+    // The navigation bar's top edge, leaving the mini player out: rows keep
+    // their size and place when it appears, and it floats over the last one.
+    final bars = steadyBottomInset(context);
+    if (bars <= 0) return child;
 
     return _EmergeBox(
-      line: media.size.height - media.padding.bottom,
-      band: media.padding.bottom,
+      line: MediaQuery.sizeOf(context).height - bars,
+      band: bars,
       // Its own layer, so sliding under the bars never re-rasterises the row.
       child: RepaintBoundary(child: child),
     );

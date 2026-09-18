@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'glass_border.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/models/enums.dart';
 import 'accent_palette.dart';
 import 'app_icons.dart';
 import '../../ui/common/app_icon.dart';
@@ -126,6 +127,60 @@ class AppTheme {
   /// How solid every piece of glass is, 0 to 1, set from Settings.
   static double glassStrength = 0.5;
 
+  /// Which look the app is in, set from Settings. Read while painting, like
+  /// [glassStrength], so it needs no context.
+  static AppStyle style = AppStyle.glass;
+  static bool get isSolid => style == AppStyle.solid;
+
+  /// The solid look's cards and bars: white on the warm light page, a deep
+  /// graphite on the dark one.
+  static Color solidCard(bool isDark) =>
+      isDark ? const Color(0xFF1D1F24) : Colors.white;
+  static Color solidBar(bool isDark) =>
+      isDark ? const Color(0xFF1B1D22) : Colors.white;
+
+  static List<BoxShadow> _solidShadow(bool isDark, {bool floating = false}) =>
+      isDark
+      ? const []
+      : [
+          BoxShadow(
+            color: const Color(
+              0xFF7A4A2A,
+            ).withValues(alpha: floating ? 0.12 : 0.08),
+            blurRadius: floating ? 22 : 14,
+            offset: Offset(0, floating ? 6 : 4),
+          ),
+        ];
+
+  static ShapeDecoration _solidSurface(
+    ThemeData theme, {
+    required BorderRadius radius,
+    required bool selected,
+    required bool floating,
+  }) {
+    final isDark = theme.brightness == Brightness.dark;
+    final base = solidCard(isDark);
+    return ShapeDecoration(
+      color: selected
+          ? Color.alphaBlend(
+              theme.colorScheme.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+              base,
+            )
+          : base,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary.withValues(alpha: 0.45)
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : const Color(0xFF3A2A20).withValues(alpha: 0.05)),
+        ),
+      ),
+      shadows: _solidShadow(isDark, floating: floating),
+    );
+  }
+
   /// Reads the setting as an alpha between [thin] and [thick].
   static double _glassAlpha(double thin, double thick) =>
       thin + (thick - thin) * glassStrength.clamp(0, 1);
@@ -155,6 +210,14 @@ class AppTheme {
     bool selected = false,
     bool floating = false,
   }) {
+    if (isSolid) {
+      return _solidSurface(
+        theme,
+        radius: radius ?? cardRadius,
+        selected: selected,
+        floating: floating,
+      );
+    }
     final isDark = theme.brightness == Brightness.dark;
     // Over a background picture the glass thins out so the picture reads
     // through it, the way frosted glass does.
@@ -211,6 +274,17 @@ class AppTheme {
   /// list scrolling underneath shows softly through.
   static BoxDecoration frostedBar(ThemeData theme, BorderRadius radius) {
     final isDark = theme.brightness == Brightness.dark;
+    if (isSolid) {
+      return BoxDecoration(
+        color: solidBar(isDark),
+        borderRadius: radius,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFF3A2A20).withValues(alpha: 0.05),
+        ),
+      );
+    }
     final fill = isDark
         ? Colors.white.withValues(alpha: _glassAlpha(0.06, 0.20))
         : Colors.white.withValues(alpha: _glassAlpha(0.38, 0.78));
@@ -430,13 +504,24 @@ class AppTheme {
         // Same milky glass as the video cards, so settings and info pages are
         // part of the same family. Flat: a shadow under a translucent card
         // would show through it as a grey smudge.
-        color: isDark
+        color: isSolid
+            ? solidCard(isDark)
+            : isDark
             ? Colors.white.withValues(alpha: _glassAlpha(0.04, 0.18))
             : Colors.white.withValues(alpha: _glassAlpha(0.42, 0.86)),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: glassEdge(isDark, cardRadius),
+        shape: isSolid
+            ? RoundedRectangleBorder(
+                borderRadius: cardRadius,
+                side: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : const Color(0xFF3A2A20).withValues(alpha: 0.05),
+                ),
+              )
+            : glassEdge(isDark, cardRadius),
       ),
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: cardRadius),

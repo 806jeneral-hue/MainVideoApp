@@ -68,13 +68,17 @@ class _SheetShell extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         child: BackdropFilter(
+          // The solid look has nothing to frost: no blur at all.
+          enabled: !AppTheme.isSolid,
           filter: ImageFilter.blur(
             sigmaX: AppTheme.glassBlur,
             sigmaY: AppTheme.glassBlur,
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: isDark
+              color: AppTheme.isSolid
+                  ? AppTheme.solidBar(isDark)
+                  : isDark
                   ? theme.colorScheme.surface.withValues(alpha: 0.84)
                   : Colors.white.withValues(alpha: 0.86),
               borderRadius: radius,

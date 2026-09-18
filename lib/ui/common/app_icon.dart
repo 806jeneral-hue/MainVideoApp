@@ -65,6 +65,15 @@ class AppIcon extends StatelessWidget {
       ],
       AppIcons.chevron_right_rounded: chevronRight,
       AppIcons.arrow_back_rounded: _mirror(chevronRight),
+      // A plain plus: two thick strokes with round ends, no box around it.
+      AppIcons.add_rounded: [
+        _Stroke(_line(const Offset(12, 5.2), const Offset(12, 18.8)), 3.1),
+        _Stroke(_line(const Offset(5.2, 12), const Offset(18.8, 12)), 3.1),
+      ],
+      // A plain minus, to match the plus.
+      AppIcons.remove_rounded: [
+        _Stroke(_line(const Offset(5.2, 12), const Offset(18.8, 12)), 3.1),
+      ],
       // A thick cross with round ends.
       AppIcons.close_rounded: [
         _Stroke(_line(const Offset(6.2, 6.2), const Offset(17.8, 17.8)), 3.2),

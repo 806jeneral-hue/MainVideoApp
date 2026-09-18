@@ -5,6 +5,24 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import 'app_icon.dart';
 
+/// Switches the player's frosting off for a moment — while the whole player
+/// is fading in, fading out or shrinking into the mini player. Nothing can be
+/// read through a panel that is itself moving and fading, so the blur only
+/// costs frames there.
+class GlassBlurGate extends InheritedWidget {
+  const GlassBlurGate({super.key, required this.enabled, required super.child});
+
+  final bool enabled;
+
+  static bool enabledOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GlassBlurGate>()?.enabled ??
+      true;
+
+  @override
+  bool updateShouldNotify(GlassBlurGate oldWidget) =>
+      oldWidget.enabled != enabled;
+}
+
 /// A translucent panel that floats over the video.
 ///
 /// The blur and the fill come from the theme, so the same component reads
@@ -46,7 +64,10 @@ class GlassPanel extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: shape,
-        child: BackdropFilter(
+        // Grouped: every panel over the same video shares one read of what is
+        // behind them instead of each taking its own.
+        child: BackdropFilter.grouped(
+          enabled: GlassBlurGate.enabledOf(context),
           filter: ImageFilter.blur(
             sigmaX: AppTheme.glassBlur,
             sigmaY: AppTheme.glassBlur,
@@ -199,7 +220,7 @@ class GlassSurface extends StatelessWidget {
       padding: padding,
       child: child,
     );
-    if (!blur) return surface;
+    if (!blur || AppTheme.isSolid) return surface;
 
     return Stack(
       children: [
@@ -330,44 +351,68 @@ class HeaderAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.tooltip,
+    this.highlighted = false,
   });
 
   final Widget icon;
   final VoidCallback? onPressed;
   final String? tooltip;
 
+  /// Filled with the accent, for the one action a page wants noticed.
+  final bool highlighted;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+
+    final body = Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Tooltip(
+          message: tooltip ?? '',
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: IconTheme.merge(
+              data: IconThemeData(
+                size: 21,
+                color: highlighted
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurface,
+              ),
+              child: Center(child: icon),
+            ),
+          ),
+        ),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: AppTheme.space8),
       child: PressScale(
-        child: GlassSurface(
-          radius: BorderRadius.circular(21),
-          floating: true,
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: onPressed,
-              customBorder: const CircleBorder(),
-              child: Tooltip(
-                message: tooltip ?? '',
-                child: SizedBox(
-                  width: 42,
-                  height: 42,
-                  child: IconTheme.merge(
-                    data: IconThemeData(
-                      size: 21,
-                      color: theme.colorScheme.onSurface,
+        child: highlighted
+            ? DecoratedBox(
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.38),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
                     ),
-                    child: Center(child: icon),
-                  ),
+                  ],
                 ),
+                child: body,
+              )
+            : GlassSurface(
+                radius: BorderRadius.circular(21),
+                floating: true,
+                child: body,
               ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -385,6 +430,16 @@ class FrostedBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (AppTheme.isSolid) {
+      // A solid bar: nothing to see through, so nothing to blur.
+      return DecoratedBox(
+        decoration: AppTheme.frostedBar(
+          theme,
+          radius,
+        ).copyWith(boxShadow: AppTheme.floatingShadow(theme.brightness)),
+        child: ClipRRect(borderRadius: radius, child: child),
+      );
+    }
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
@@ -392,7 +447,7 @@ class FrostedBar extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: radius,
-        child: BackdropFilter(
+        child: BackdropFilter.grouped(
           filter: ImageFilter.blur(
             sigmaX: AppTheme.frostedBlur,
             sigmaY: AppTheme.frostedBlur,

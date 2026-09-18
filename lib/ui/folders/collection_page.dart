@@ -13,7 +13,6 @@ import '../common/glass.dart';
 import '../common/empty_state.dart';
 import '../common/bottom_fade.dart';
 import '../common/drag_select.dart';
-import '../common/app_sheet.dart';
 import '../common/fast_scroller.dart';
 import '../common/tab_scroll.dart';
 import '../common/selection.dart';
@@ -24,9 +23,12 @@ import '../settings/settings_button.dart';
 import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'video_picker_page.dart';
-import '../common/glass_controls.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/app_icon.dart';
+import '../../state/bookmark_controller.dart';
+import '../../data/models/bookmark.dart';
+import '../common/quick_menu.dart';
+import '../common/play_menus.dart';
 
 /// Which kind of list a [CollectionPage] is showing.
 enum CollectionKind { folder, playlist, favorites }
@@ -220,24 +222,35 @@ class _CollectionPageState extends State<CollectionPage>
                                       ),
                                 ),
                               ),
-                              TextButton.icon(
-                                // Long-press goes straight to shuffled; a tap
-                                // asks which order to use.
-                                onLongPress: () => _playAll(
-                                  context,
-                                  videos,
-                                  title,
-                                  shuffled: true,
-                                ),
-                                onPressed: () =>
-                                    _askPlayMode(context, videos, title),
-                                icon: const AppIcon(
-                                  AppIcons.play_arrow_rounded,
-                                  size: 20,
-                                ),
-                                label: Text(context.s.playAll),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: AppTheme.accent,
+                              Builder(
+                                builder: (buttonContext) => TextButton.icon(
+                                  // A tap plays in order straight away; holding
+                                  // opens the other ways: from the mark, as a
+                                  // custom session, shuffled.
+                                  onLongPress: () => showQuickMenu(
+                                    context,
+                                    anchor: anchorOf(buttonContext),
+                                    actions: videoPlayActions(
+                                      context,
+                                      collection: _key,
+                                      videos: videos,
+                                      title: title,
+                                    ),
+                                  ),
+                                  onPressed: () => _playAll(
+                                    context,
+                                    videos,
+                                    title,
+                                    shuffled: false,
+                                  ),
+                                  icon: const AppIcon(
+                                    AppIcons.play_arrow_rounded,
+                                    size: 20,
+                                  ),
+                                  label: Text(context.s.playAll),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppTheme.accent,
+                                  ),
                                 ),
                               ),
                             ],
@@ -247,6 +260,9 @@ class _CollectionPageState extends State<CollectionPage>
                       VideoSliver(
                         videos: videos,
                         viewMode: library.viewMode,
+                        marker: context.select<BookmarkController, StopMarker?>(
+                          (b) => b.markerFor(_key),
+                        ),
                         selectionMode: selectionMode,
                         selectedIds: selectedIds,
                         onReorder: prefs.isManual
@@ -272,6 +288,7 @@ class _CollectionPageState extends State<CollectionPage>
                             queue: videos,
                             startIndex: index,
                             queueTitle: title,
+                            collection: _key,
                           );
                         },
                         onMore: (video) {
@@ -287,8 +304,10 @@ class _CollectionPageState extends State<CollectionPage>
                               queue: videos,
                               startIndex: videos.indexOf(video),
                               queueTitle: title,
+                              collection: _key,
                             ),
                             onSelect: () => startSelection(video),
+                            collection: _key,
                             onRemoveFromPlaylist:
                                 widget.kind == CollectionKind.playlist &&
                                     playlist != null
@@ -308,51 +327,6 @@ class _CollectionPageState extends State<CollectionPage>
     );
   }
 
-  /// Play All offers both orders rather than assuming one.
-  Future<void> _askPlayMode(
-    BuildContext context,
-    List<Video> videos,
-    String title,
-  ) {
-    return showAppSheet<void>(
-      context,
-      builder: (sheetContext) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 10),
-            child: Text(
-              context.s.howToPlay,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          GlassTile(
-            leading: const Icon(AppIcons.playlist_play_rounded),
-            title: Text(context.s.playInOrder),
-            subtitle: Text(context.s.videoCount(videos.length)),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _playAll(context, videos, title, shuffled: false);
-            },
-          ),
-          GlassTile(
-            leading: const Icon(AppIcons.shuffle_rounded),
-            title: Text(context.s.playShuffled),
-            subtitle: Text(context.s.videoCount(videos.length)),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _playAll(context, videos, title, shuffled: true);
-            },
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
   void _playAll(
     BuildContext context,
     List<Video> videos,
@@ -365,6 +339,7 @@ class _CollectionPageState extends State<CollectionPage>
       startIndex: 0,
       queueTitle: title,
       shuffle: shuffled,
+      collection: _key,
     );
   }
 

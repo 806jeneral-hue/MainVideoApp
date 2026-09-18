@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import 'bottom_fade.dart';
 import 'emerge.dart';
 import 'drag_select.dart';
+import '../../data/models/bookmark.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/video.dart';
 import '../home/widgets/video_grid_tile.dart';
@@ -26,6 +27,7 @@ class VideoSliver extends StatelessWidget {
     this.selectionMode = false,
     this.selectedIds = const {},
     this.onReorder,
+    this.marker,
   });
 
   final List<Video> videos;
@@ -42,6 +44,12 @@ class VideoSliver extends StatelessWidget {
 
   /// Non-null turns the list into a reorderable one (custom order).
   final void Function(int oldIndex, int newIndex)? onReorder;
+
+  /// This list's stop marker, shown on the video it points at.
+  final StopMarker? marker;
+
+  int? _markedAt(Video video) =>
+      marker?.videoId == video.id ? marker!.positionMs : null;
 
   bool get _reorderable => onReorder != null && !selectionMode;
 
@@ -91,6 +99,7 @@ class VideoSliver extends StatelessWidget {
                     isPinned: isPinned?.call(video) ?? false,
                     selectionMode: selectionMode,
                     selected: selectedIds.contains(video.id),
+                    markedAtMs: _markedAt(video),
                     onTap: () => onTap(video, index),
                     onMore: () => onMore(video),
                   ),
@@ -115,7 +124,7 @@ class VideoSliver extends StatelessWidget {
         final room =
             constraints.viewportMainAxisExtent -
             constraints.precedingScrollExtent -
-            MediaQuery.paddingOf(context).bottom -
+            steadyBottomInset(context) -
             2;
         final extent = (room / perScreen).clamp(
           viewMode == ViewMode.compact ? 52.0 : 88.0,
@@ -164,6 +173,7 @@ class VideoSliver extends StatelessWidget {
           video: video,
           compact: viewMode == ViewMode.compact,
           extent: extent,
+          markedAtMs: _markedAt(video),
           progress: progressOf(video),
           isFavorite: isFavorite(video),
           isPinned: isPinned?.call(video) ?? false,

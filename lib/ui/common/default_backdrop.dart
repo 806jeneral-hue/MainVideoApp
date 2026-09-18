@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
+
 /// The app's own background, shown whenever no picture is chosen in Settings.
 ///
 /// A deep night blue (or, in the light theme, a warm pearl) with soft amber
@@ -17,7 +19,9 @@ class DefaultBackdrop extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return RepaintBoundary(
       child: CustomPaint(
-        painter: _BackdropPainter(isDark ? _Palette.dark : _Palette.light),
+        painter: AppTheme.isSolid
+            ? _SolidBackdropPainter(isDark)
+            : _BackdropPainter(isDark ? _Palette.dark : _Palette.light),
         child: const SizedBox.expand(),
       ),
     );
@@ -299,4 +303,114 @@ class _BackdropPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BackdropPainter old) => old.p != p;
+}
+
+/// The classic look's backdrop: a warm cream page with soft peach light
+/// pooling in the corners, or near-black with thin orange light sweeping in
+/// round two of them.
+class _SolidBackdropPainter extends CustomPainter {
+  const _SolidBackdropPainter(this.isDark);
+
+  final bool isDark;
+
+  static const _orange = Color(0xFFF2782B);
+  static const _peach = Color(0xFFFBC49A);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    if (w <= 0 || h <= 0) return;
+    final rect = Offset.zero & size;
+    final unit = math.min(w, h);
+
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [Color(0xFF15161A), Color(0xFF111215), Color(0xFF141212)]
+              : const [Color(0xFFFBF7F2), Color(0xFFF8F2EB), Color(0xFFFAF3EC)],
+        ).createShader(rect),
+    );
+
+    if (isDark) {
+      // A dim ember glow in two corners, with a thin line of light along it.
+      _glow(canvas, Offset(0, h * 0.02), unit * 0.55, _orange, 0.22);
+      _glow(canvas, Offset(w, h * 0.98), unit * 0.6, _orange, 0.20);
+      _sweep(
+        canvas,
+        Path()
+          ..moveTo(0, h * 0.13)
+          ..cubicTo(w * 0.05, h * 0.07, w * 0.10, h * 0.03, w * 0.16, 0),
+        0.9,
+      );
+      _sweep(
+        canvas,
+        Path()
+          ..moveTo(w, h * 0.58)
+          ..cubicTo(w * 0.94, h * 0.72, w * 0.86, h * 0.86, w * 0.74, h),
+        0.9,
+      );
+      _sweep(
+        canvas,
+        Path()
+          ..moveTo(w, h * 0.66)
+          ..cubicTo(w * 0.95, h * 0.78, w * 0.89, h * 0.9, w * 0.82, h),
+        0.4,
+      );
+    } else {
+      // Soft peach pools in the corners of a cream page.
+      _glow(
+        canvas,
+        Offset(-unit * 0.05, -unit * 0.02),
+        unit * 0.42,
+        _peach,
+        0.85,
+      );
+      _glow(canvas, Offset(w * 1.02, h * 0.45), unit * 0.30, _peach, 0.75);
+      _glow(canvas, Offset(-unit * 0.06, h * 0.82), unit * 0.30, _peach, 0.8);
+      _glow(canvas, Offset(w * 1.04, h * 0.96), unit * 0.45, _peach, 0.8);
+    }
+  }
+
+  void _glow(Canvas canvas, Offset c, double r, Color color, double a) {
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: a),
+            color.withValues(alpha: a * 0.5),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.5, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+  }
+
+  void _sweep(Canvas canvas, Path path, double strength) {
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10
+        ..color = _orange.withValues(alpha: 0.28 * strength)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = _orange.withValues(alpha: 0.9 * strength),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SolidBackdropPainter old) => old.isDark != isDark;
 }

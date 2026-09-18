@@ -46,25 +46,29 @@ class GlassDialog extends StatelessWidget {
           child: ClipRRect(
             borderRadius: radius,
             child: BackdropFilter(
+              enabled: !AppTheme.isSolid,
               // Stronger than the sheets' blur and a much thinner fill, so the
               // page behind reads through as frosted glass rather than the
               // dialog looking like a white card.
               filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [
-                            Colors.white.withValues(alpha: 0.14),
-                            Colors.white.withValues(alpha: 0.06),
-                          ]
-                        : [
-                            Colors.white.withValues(alpha: 0.72),
-                            Colors.white.withValues(alpha: 0.48),
-                          ],
-                  ),
+                  color: AppTheme.isSolid ? AppTheme.solidCard(isDark) : null,
+                  gradient: AppTheme.isSolid
+                      ? null
+                      : LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: isDark
+                              ? [
+                                  Colors.white.withValues(alpha: 0.14),
+                                  Colors.white.withValues(alpha: 0.06),
+                                ]
+                              : [
+                                  Colors.white.withValues(alpha: 0.72),
+                                  Colors.white.withValues(alpha: 0.48),
+                                ],
+                        ),
                   borderRadius: radius,
                   border: Border.all(
                     color: isDark

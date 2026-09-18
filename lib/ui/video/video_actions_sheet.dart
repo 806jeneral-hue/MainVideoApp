@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../common/app_sheet.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/video.dart';
 import '../../data/services/video_file_service.dart';
@@ -13,10 +12,11 @@ import '../folders/add_to_playlist_sheet.dart';
 import 'move_to_sheet.dart';
 import 'video_info_page.dart';
 import '../common/glass_dialog.dart';
-import '../common/glass_controls.dart';
 import '../common/glass_snack_bar.dart';
 import '../../core/theme/app_icons.dart';
-import '../common/app_icon.dart';
+import '../../state/bookmark_controller.dart';
+import '../../data/models/collection_prefs.dart';
+import '../common/quick_tiles.dart';
 
 /// Long-press / "…" menu for a single video (phase 6).
 Future<void> showVideoActions(
@@ -25,6 +25,9 @@ Future<void> showVideoActions(
   VoidCallback? onPlay,
   VoidCallback? onSelect,
   Future<void> Function()? onRemoveFromPlaylist,
+
+  /// The list the menu was opened from, for marking where the user stopped.
+  CollectionKey? collection,
 }) {
   return showAppSheet<void>(
     context,
@@ -34,6 +37,7 @@ Future<void> showVideoActions(
       onPlay: onPlay,
       onSelect: onSelect,
       onRemoveFromPlaylist: onRemoveFromPlaylist,
+      collection: collection,
     ),
   );
 }
@@ -44,6 +48,7 @@ class _VideoActionsSheet extends StatelessWidget {
     this.onPlay,
     this.onSelect,
     this.onRemoveFromPlaylist,
+    this.collection,
   });
 
   final Video video;
@@ -52,6 +57,7 @@ class _VideoActionsSheet extends StatelessWidget {
   /// Starts a multi-select with this video already ticked.
   final VoidCallback? onSelect;
   final Future<void> Function()? onRemoveFromPlaylist;
+  final CollectionKey? collection;
 
   @override
   Widget build(BuildContext context) {
@@ -100,103 +106,129 @@ class _VideoActionsSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppTheme.space8),
-            const SizedBox(height: 6),
-            if (onPlay != null)
-              _Action(
-                icon: AppIcons.play_arrow_rounded,
-                label: context.s.play,
-                onTap: () {
-                  Navigator.pop(context);
-                  onPlay!();
-                },
-              ),
-            if (onSelect != null)
-              _Action(
-                icon: AppIcons.checklist_rounded,
-                label: context.s.select,
-                onTap: () {
-                  Navigator.pop(context);
-                  onSelect!();
-                },
-              ),
-            _Action(
-              icon: isFavorite ? AppIcons.favorite : AppIcons.favorite_border,
-              label: isFavorite
-                  ? context.s.removeFromFavorites
-                  : context.s.addToFavorites,
-              iconColor: isFavorite ? context.accent : null,
-              onTap: () => library.toggleFavorite(video.id),
-            ),
-            _Action(
-              icon: isPinned
-                  ? AppIcons.push_pin_rounded
-                  : AppIcons.push_pin_outlined,
-              label: isPinned ? context.s.unpinFromTop : context.s.pinToTop,
-              iconColor: isPinned ? context.accent : null,
-              onTap: () => library.toggleVideoPin(video.id),
-            ),
-            _Action(
-              icon: AppIcons.playlist_add_rounded,
-              label: context.s.addToPlaylist,
-              onTap: () async {
-                Navigator.pop(context);
-                await showAddToPlaylistSheet(context, [video.id]);
-              },
-            ),
-            if (onRemoveFromPlaylist != null)
-              _Action(
-                icon: AppIcons.playlist_remove_rounded,
-                label: context.s.removeFromThisPlaylist,
-                onTap: () async {
-                  Navigator.pop(context);
-                  await onRemoveFromPlaylist!();
-                },
-              ),
-            _Action(
-              icon: isHidden
-                  ? AppIcons.visibility_rounded
-                  : AppIcons.visibility_off_outlined,
-              label: isHidden ? context.s.unhideVideo : context.s.hideVideo,
-              iconColor: isHidden ? context.accent : null,
-              onTap: () => library.toggleVideoHidden(video.id),
-            ),
-            _Action(
-              icon: AppIcons.drive_file_move_outline,
-              label: context.s.moveTo,
-              onTap: () async {
-                Navigator.pop(context);
-                await showMoveToSheet(context, [video]);
-              },
-            ),
-            _Action(
-              icon: AppIcons.drive_file_rename_outline_rounded,
-              label: context.s.rename,
-              onTap: () async {
-                Navigator.pop(context);
-                await promptRenameVideo(context, library, video);
-              },
-            ),
-            _Action(
-              icon: AppIcons.info_outline_rounded,
-              label: context.s.videoInfo,
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => VideoInfoPage(video: video),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // The main things to do, as two pills: play stands out.
+                  if (onPlay != null || onSelect != null)
+                    Row(
+                      children: [
+                        if (onPlay != null)
+                          Expanded(
+                            child: PillAction(
+                              icon: AppIcons.play_arrow_rounded,
+                              label: context.s.play,
+                              filled: true,
+                              onTap: () {
+                                Navigator.pop(context);
+                                onPlay!();
+                              },
+                            ),
+                          ),
+                        if (onPlay != null && onSelect != null)
+                          const SizedBox(width: 8),
+                        if (onSelect != null)
+                          Expanded(
+                            child: PillAction(
+                              icon: AppIcons.checklist_rounded,
+                              label: context.s.select,
+                              onTap: () {
+                                Navigator.pop(context);
+                                onSelect!();
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 4),
+                  TileGrid(
+                    tiles: [
+                      if (collection != null) _markTile(context, library),
+                      QuickTile(
+                        icon: isFavorite
+                            ? AppIcons.favorite
+                            : AppIcons.favorite_border,
+                        label: context.s.tileFavorite,
+                        active: isFavorite,
+                        onTap: () => library.toggleFavorite(video.id),
+                      ),
+                      QuickTile(
+                        icon: isPinned
+                            ? AppIcons.push_pin_rounded
+                            : AppIcons.push_pin_outlined,
+                        label: context.s.tilePin,
+                        active: isPinned,
+                        onTap: () => library.toggleVideoPin(video.id),
+                      ),
+                      QuickTile(
+                        icon: AppIcons.playlist_add_rounded,
+                        label: context.s.tilePlaylist,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await showAddToPlaylistSheet(context, [video.id]);
+                        },
+                      ),
+                      if (onRemoveFromPlaylist != null)
+                        QuickTile(
+                          icon: AppIcons.playlist_remove_rounded,
+                          label: context.s.tileRemoveFromList,
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await onRemoveFromPlaylist!();
+                          },
+                        ),
+                      QuickTile(
+                        icon: isHidden
+                            ? AppIcons.visibility_rounded
+                            : AppIcons.visibility_off_outlined,
+                        label: isHidden
+                            ? context.s.tileUnhide
+                            : context.s.tileHide,
+                        active: isHidden,
+                        onTap: () => library.toggleVideoHidden(video.id),
+                      ),
+                      QuickTile(
+                        icon: AppIcons.drive_file_move_outline,
+                        label: context.s.tileMove,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await showMoveToSheet(context, [video]);
+                        },
+                      ),
+                      QuickTile(
+                        icon: AppIcons.drive_file_rename_outline_rounded,
+                        label: context.s.tileRename,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await promptRenameVideo(context, library, video);
+                        },
+                      ),
+                      QuickTile(
+                        icon: AppIcons.info_outline_rounded,
+                        label: context.s.tileInfo,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => VideoInfoPage(video: video),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-            _Action(
-              icon: AppIcons.delete_outline_rounded,
-              label: context.s.deleteFromDevice,
-              destructive: true,
-              onTap: () async {
-                Navigator.pop(context);
-                await confirmDeleteVideo(context, library, video);
-              },
+                  const SizedBox(height: 10),
+                  DangerRow(
+                    label: context.s.deleteFromDevice,
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await confirmDeleteVideo(context, library, video);
+                    },
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -297,31 +329,30 @@ Future<void> confirmDeleteVideo(
   );
 }
 
-class _Action extends StatelessWidget {
-  const _Action({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.destructive = false,
-    this.iconColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool destructive;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = destructive
-        ? Colors.redAccent
-        : Theme.of(context).colorScheme.onSurface;
-
-    return GlassTile(
-      leading: AppIcon(icon, color: iconColor ?? color),
-      title: Text(label, style: TextStyle(color: color)),
-      onTap: onTap,
+extension on _VideoActionsSheet {
+  /// This list's mark: set it on this video — where it was left, if it was
+  /// started — or, on the marked video, take it off.
+  Widget _markTile(BuildContext context, LibraryController library) {
+    final bookmarks = context.watch<BookmarkController>();
+    final key = collection!;
+    final marked = bookmarks.markerFor(key)?.videoId == video.id;
+    return QuickTile(
+      icon: AppIcons.bookmark_rounded,
+      label: marked ? context.s.tileMarked : context.s.tileMark,
+      active: marked,
+      onTap: () {
+        if (marked) {
+          bookmarks.clearMarker(key);
+          return;
+        }
+        final resume = library.resumePositionMs(video.id);
+        final valid = resume > 2000 && resume < video.durationMs - 3000;
+        bookmarks.setMarker(
+          key,
+          videoId: video.id,
+          positionMs: valid ? resume : 0,
+        );
+      },
     );
   }
 }

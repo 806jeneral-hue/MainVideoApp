@@ -11,7 +11,10 @@ import '../../../state/playback_controller.dart';
 import '../player_page.dart';
 import '../../common/glass.dart';
 import 'playback_sheets.dart';
+import 'player_glyphs.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../state/bookmark_controller.dart';
+import '../../../data/models/bookmark.dart';
 
 /// The control overlay: a glass top bar, the transport in the middle, the
 /// scrubber, and a floating panel holding the six playback toggles.
@@ -65,7 +68,9 @@ class _FullControls extends StatelessWidget {
             Expanded(child: Center(child: _Transport())),
             _AbBanner(),
             _SeekBar(),
-            SizedBox(height: AppTheme.space16),
+            SizedBox(height: 10),
+            _Shortcuts(),
+            SizedBox(height: AppTheme.space12),
           ],
         ),
       ),
@@ -149,8 +154,8 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Playlist, rotation, picture-in-picture and the display mode, gathered into
-/// one glass pill so four controls read as a single component.
+/// The queue and the More menu, in one glass pill beside the title. Lock,
+/// picture-in-picture, display mode and rotation sit under the seek bar.
 class _TopActions extends StatelessWidget {
   const _TopActions({required this.playback});
 
@@ -158,20 +163,15 @@ class _TopActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (pipEnabled, forced, fit, optionsActive) = context
-        .select<PlaybackController, (bool, Orientation?, VideoFit, bool)>(
-          (p) => (
-            p.settings.pipEnabled,
-            p.forcedOrientation,
-            p.videoFit,
-            // Lit while anything behind More is changed from its default.
-            p.speed != 1.0 ||
-                p.shuffle ||
-                p.loopMode != LoopMode.off ||
-                p.pointA != null ||
-                p.sleepEndsAt != null,
-          ),
-        );
+    final optionsActive = context.select<PlaybackController, bool>(
+      // Lit while anything behind More is changed from its default.
+      (p) =>
+          p.speed != 1.0 ||
+          p.shuffle ||
+          p.loopMode != LoopMode.off ||
+          p.pointA != null ||
+          p.sleepEndsAt != null,
+    );
 
     return GlassPanel(
       radius: BorderRadius.circular(AppTheme.radiusSheet),
@@ -185,53 +185,101 @@ class _TopActions extends StatelessWidget {
             onTap: () => showQueueSheet(context),
           ),
           GlassBarIcon(
-            icon: switch (fit) {
-              VideoFit.fit => AppIcons.fit_screen_rounded,
-              VideoFit.fill => AppIcons.crop_free_rounded,
-              VideoFit.stretch => AppIcons.open_in_full_rounded,
-              VideoFit.ratio16x9 => AppIcons.crop_16_9_rounded,
-              VideoFit.ratio4x3 => AppIcons.crop_din_rounded,
-              VideoFit.original => AppIcons.photo_size_select_actual_outlined,
-            },
-            tooltip: '${context.s.displayMode} · ${fit.label(context.s)}',
-            active: fit != VideoFit.fit,
-            onTap: () {
-              Haptics.light();
-              playback.cycleVideoFit();
-              // Names the new mode, since the icon alone does not say it.
-              playback.flashLabel(playback.videoFit.label(context.s));
-            },
-          ),
-          GlassBarIcon(
-            icon: switch (forced) {
-              null => AppIcons.screen_rotation_rounded,
-              Orientation.landscape => AppIcons.stay_current_landscape_rounded,
-              Orientation.portrait => AppIcons.stay_current_portrait_rounded,
-            },
-            tooltip: switch (forced) {
-              null => context.s.rotationAuto,
-              Orientation.landscape => context.s.rotationLandscape,
-              Orientation.portrait => context.s.rotationPortrait,
-            },
-            active: forced != null,
-            onTap: () {
-              Haptics.light();
-              playback.cycleOrientation();
-            },
-          ),
-          if (pipEnabled)
-            GlassBarIcon(
-              icon: AppIcons.picture_in_picture_alt_rounded,
-              tooltip: context.s.pictureInPicture,
-              onTap: playback.enterPip,
-            ),
-          GlassBarIcon(
             icon: AppIcons.more_vert_rounded,
             tooltip: context.s.more,
             active: optionsActive,
             onTap: () => showPlayerOptionsSheet(context),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Lock, picture-in-picture, display mode and rotation, each in its own glass
+/// circle along the bottom right, under the seek bar.
+class _Shortcuts extends StatelessWidget {
+  const _Shortcuts();
+
+  @override
+  Widget build(BuildContext context) {
+    final playback = context.read<PlaybackController>();
+    final theme = Theme.of(context);
+    final (pipEnabled, forced, fit) = context
+        .select<PlaybackController, (bool, Orientation?, VideoFit)>(
+          (p) => (p.settings.pipEnabled, p.forcedOrientation, p.videoFit),
+        );
+
+    Widget button({
+      required PlayerGlyphKind glyph,
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback onTap,
+      bool active = false,
+    }) => Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: GlassCircleButton(
+        icon: icon,
+        size: 42,
+        tooltip: tooltip,
+        onTap: () {
+          Haptics.light();
+          onTap();
+        },
+        child: PlayerGlyph(
+          glyph,
+          color: active
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurface,
+        ),
+      ),
+    );
+
+    // Laid out left to right in every language, like the transport above.
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            button(
+              glyph: PlayerGlyphKind.lock,
+              icon: AppIcons.lock_rounded,
+              tooltip: context.s.lock,
+              onTap: playback.toggleLock,
+            ),
+            if (pipEnabled)
+              button(
+                glyph: PlayerGlyphKind.pictureInPicture,
+                icon: AppIcons.picture_in_picture_alt_rounded,
+                tooltip: context.s.pictureInPicture,
+                onTap: playback.enterPip,
+              ),
+            button(
+              glyph: PlayerGlyphKind.displayMode,
+              icon: AppIcons.fit_screen_rounded,
+              tooltip: '${context.s.displayMode} · ${fit.label(context.s)}',
+              active: fit != VideoFit.fit,
+              onTap: () {
+                playback.cycleVideoFit();
+                // Names the new mode, since the icon alone does not say it.
+                playback.flashLabel(playback.videoFit.label(context.s));
+              },
+            ),
+            button(
+              glyph: PlayerGlyphKind.rotate,
+              icon: AppIcons.screen_rotation_rounded,
+              tooltip: switch (forced) {
+                null => context.s.rotationAuto,
+                Orientation.landscape => context.s.rotationLandscape,
+                Orientation.portrait => context.s.rotationPortrait,
+              },
+              active: forced != null,
+              onTap: playback.cycleOrientation,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -443,16 +491,26 @@ class _SeekBar extends StatelessWidget {
                         ),
                         trackShape: const RoundedRectSliderTrackShape(),
                       ),
-                      child: Slider(
-                        value: valueMs,
-                        max: maxMs,
-                        onChangeStart: (v) => playback.beginScrub(
-                          Duration(milliseconds: v.round()),
-                        ),
-                        onChanged: (v) => playback.updateScrub(
-                          Duration(milliseconds: v.round()),
-                        ),
-                        onChangeEnd: (_) => playback.endScrub(),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Slider(
+                            value: valueMs,
+                            max: maxMs,
+                            onChangeStart: (v) => playback.beginScrub(
+                              Duration(milliseconds: v.round()),
+                            ),
+                            onChanged: (v) => playback.updateScrub(
+                              Duration(milliseconds: v.round()),
+                            ),
+                            onChangeEnd: (_) => playback.endScrub(),
+                          ),
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: _MarksOnTrack(totalMs: maxMs),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -469,6 +527,93 @@ class _SeekBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The saved moments of this video, as small dots on the seek bar, and the
+/// list's stop mark, as a taller accent tick, when it is on this video.
+class _MarksOnTrack extends StatelessWidget {
+  const _MarksOnTrack({required this.totalMs});
+
+  final double totalMs;
+
+  @override
+  Widget build(BuildContext context) {
+    final playback = context.read<PlaybackController>();
+    final id = context.select<PlaybackController, String?>(
+      (p) => p.currentOrNull?.id,
+    );
+    if (id == null || totalMs <= 1) return const SizedBox.shrink();
+    final moments = context.select<BookmarkController, List<Moment>>(
+      (b) => b.momentsFor(id),
+    );
+    final stop = context.select<BookmarkController, int?>((b) {
+      final marker = b.markerFor(playback.collection);
+      return marker?.videoId == id ? marker!.positionMs : null;
+    });
+    if (moments.isEmpty && stop == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return CustomPaint(
+      painter: _MarksPainter(
+        fractions: [for (final m in moments) m.ms / totalMs],
+        stop: stop == null ? null : stop / totalMs,
+        dot: theme.colorScheme.onSurface,
+        accent: theme.colorScheme.primary,
+      ),
+    );
+  }
+}
+
+class _MarksPainter extends CustomPainter {
+  const _MarksPainter({
+    required this.fractions,
+    required this.stop,
+    required this.dot,
+    required this.accent,
+  });
+
+  final List<double> fractions;
+  final double? stop;
+  final Color dot;
+  final Color accent;
+
+  /// The slider's track is inset by its overlay radius on both sides.
+  static const double _inset = 18;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width - _inset * 2;
+    if (width <= 0) return;
+    final y = size.height / 2;
+    final ring = Paint()..color = Colors.black.withValues(alpha: 0.35);
+    final fill = Paint()..color = dot;
+    for (final f in fractions) {
+      final x = _inset + width * f.clamp(0.0, 1.0);
+      canvas.drawCircle(Offset(x, y), 3.4, ring);
+      canvas.drawCircle(Offset(x, y), 2.4, fill);
+    }
+    final s = stop;
+    if (s != null) {
+      final x = _inset + width * s.clamp(0.0, 1.0);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(x, y), width: 4, height: 14),
+          const Radius.circular(2),
+        ),
+        Paint()..color = accent,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MarksPainter old) =>
+      old.stop != stop ||
+      old.dot != dot ||
+      old.accent != accent ||
+      old.fractions.length != fractions.length ||
+      !Iterable<int>.generate(
+        fractions.length,
+      ).every((i) => old.fractions[i] == fractions[i]);
 }
 
 /// Text that sits straight on the frame carries a soft dark shadow, so it stays

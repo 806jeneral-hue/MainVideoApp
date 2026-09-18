@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'strings.dart';
 
 export 'enum_labels.dart';
+export 'bookmark_strings.dart';
 export 'music_strings.dart';
 export 'player_strings.dart';
 
