@@ -1,10 +1,14 @@
 package com.mainvideo.main_video
 
 import android.app.PictureInPictureParams
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.media.AudioManager
 import android.media.MediaScannerConnection
 import android.os.Build
 import android.provider.MediaStore
@@ -31,6 +35,15 @@ class MainActivity : FlutterActivity() {
     private var musicLibrary: MusicLibrary? = null
     private var mediaIndexChannel: MethodChannel? = null
     private var videoScrubbing: VideoScrubbing? = null
+
+    private var isNoisyReceiverRegistered = false
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                playbackChannel?.invokeMethod("playbackAction", "pause")
+            }
+        }
+    }
 
     /**
      * Asks for the display's highest refresh rate.
@@ -173,6 +186,16 @@ class MainActivity : FlutterActivity() {
         PlaybackService.onAction = { action ->
             runOnUiThread { playbackChannel?.invokeMethod("playbackAction", action) }
         }
+
+        val noisyFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        if (!isNoisyReceiverRegistered) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(noisyReceiver, noisyFilter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(noisyReceiver, noisyFilter)
+            }
+            isNoisyReceiverRegistered = true
+        }
     }
 
     private fun showNowPlaying(call: io.flutter.plugin.common.MethodCall) {
@@ -262,6 +285,13 @@ class MainActivity : FlutterActivity() {
         videoScrubbing = null
         mediaIndexChannel = null
         musicLibrary = null
+        if (isNoisyReceiverRegistered) {
+            try {
+                unregisterReceiver(noisyReceiver)
+            } catch (e: Exception) {
+            }
+            isNoisyReceiverRegistered = false
+        }
         super.onDestroy()
     }
 }

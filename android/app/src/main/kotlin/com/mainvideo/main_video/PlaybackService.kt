@@ -5,8 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
@@ -96,6 +100,15 @@ class PlaybackService : Service() {
     private var metadataKey: String? = null
     private var inForeground = false
 
+    private var isNoisyRegistered = false
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                send("pause")
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -146,6 +159,16 @@ class PlaybackService : Service() {
             setSessionActivity(openAppIntent())
             isActive = true
         }
+
+        val noisyFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        if (!isNoisyRegistered) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(noisyReceiver, noisyFilter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(noisyReceiver, noisyFilter)
+            }
+            isNoisyRegistered = true
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -169,6 +192,13 @@ class PlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        if (isNoisyRegistered) {
+            try {
+                unregisterReceiver(noisyReceiver)
+            } catch (e: Exception) {
+            }
+            isNoisyRegistered = false
+        }
         session.isActive = false
         session.release()
         if (instance === this) instance = null

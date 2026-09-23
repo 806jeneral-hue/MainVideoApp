@@ -58,20 +58,41 @@ class _FullControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SafeArea(
+    return SafeArea(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppTheme.space16),
-        child: Column(
-          children: [
-            SizedBox(height: AppTheme.space8),
-            _TopBar(),
-            Expanded(child: Center(child: _Transport())),
-            _AbBanner(),
-            _SeekBar(),
-            SizedBox(height: 10),
-            _Shortcuts(),
-            SizedBox(height: AppTheme.space12),
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.space16),
+        child: OrientationBuilder(
+          builder: (context, orientation) {
+            final isPortrait = orientation == Orientation.portrait;
+            return Column(
+              children: [
+                const SizedBox(height: AppTheme.space8),
+                const _TopBar(),
+                const Expanded(child: Center(child: _Transport())),
+                const _AbBanner(),
+                if (isPortrait) ...[
+                  // Portrait: الأزرار الأربعة فوق، ثم شريط التقدم كامل العرض
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: _Shortcuts(),
+                  ),
+                  const SizedBox(height: 6),
+                  const _SeekBar(),
+                ] else ...[
+                  // Landscape: شريط التقدم جنب الأزرار في نفس الصف
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: _SeekBar()),
+                      SizedBox(width: 8),
+                      _Shortcuts(),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppTheme.space12),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -236,13 +257,11 @@ class _Shortcuts extends StatelessWidget {
     );
 
     // Laid out left to right in every language, like the transport above.
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
             button(
               glyph: PlayerGlyphKind.lock,
               icon: AppIcons.lock_rounded,
@@ -278,8 +297,7 @@ class _Shortcuts extends StatelessWidget {
               active: forced != null,
               onTap: playback.cycleOrientation,
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

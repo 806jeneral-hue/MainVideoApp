@@ -83,6 +83,7 @@ class MainVideoApp extends StatelessWidget {
             // A song deleted from the Music tab leaves the queue the same way.
             context.read<MusicController>().onSongDeleted = (id) =>
                 playback.onLibraryVideoChanged(oldId: id);
+            playback.bindBackgroundService();
             return playback;
           },
         ),

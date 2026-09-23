@@ -408,9 +408,9 @@ class PlaybackController extends ChangeNotifier {
         case 'toggle':
           togglePlay();
         case 'play':
-          if (!isPlaying) togglePlay();
+          play();
         case 'pause':
-          if (isPlaying) togglePlay();
+          pause();
         case 'next':
           next();
         case 'previous':
@@ -790,7 +790,30 @@ class PlaybackController extends ChangeNotifier {
     unawaited(_syncBackgroundService());
     notifyListeners();
   }
+  Future<void> play() async {
+    final controller = _vp;
+    if (controller == null) return;
+    if (!controller.value.isPlaying) {
+      await controller.play();
+      _applyWakelock();
+      _showControlsBriefly();
+      unawaited(_syncBackgroundService());
+      notifyListeners();
+    }
+  }
 
+  Future<void> pause() async {
+    final controller = _vp;
+    if (controller == null) return;
+    if (controller.value.isPlaying) {
+      await controller.pause();
+      await _savePosition();
+      _applyWakelock();
+      _showControlsBriefly();
+      unawaited(_syncBackgroundService());
+      notifyListeners();
+    }
+  }
   Future<void> next() async {
     final at = _order.indexOf(_index);
     if (at < 0 || at >= _order.length - 1) return;
