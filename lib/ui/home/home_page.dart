@@ -17,12 +17,12 @@ import '../../state/bookmark_controller.dart';
 import '../../state/library_controller.dart';
 import '../../state/playback_controller.dart';
 import '../../state/settings_controller.dart';
+import '../common/app_search_bar.dart';
 import '../common/bottom_fade.dart';
+import '../common/glass.dart';
 import '../common/drag_select.dart';
 import '../common/empty_state.dart';
 import '../common/fast_scroller.dart';
-import '../common/glass.dart';
-import '../common/search_focus.dart';
 import '../common/selection.dart';
 import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
@@ -33,8 +33,8 @@ import '../video/video_actions_sheet.dart';
 import 'widgets/library_status_view.dart';
 import 'widgets/sort_sheet.dart';
 
-/// Quick filters standing in for the Recently Added / Recently Played / Archives
-/// sections of phase 6.
+/// Quick filters standing in for the Recently Added / Recently Played /
+/// Archives sections of phase 6.
 enum HomeFilter { all, recentlyAdded, recentlyPlayed, archives }
 
 class HomePage extends StatefulWidget {
@@ -44,16 +44,25 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with VideoSelection<HomePage>, SearchFocusState<HomePage> {
+class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
   final ScrollController _ownScrollController = ScrollController();
   HomeFilter _filter = HomeFilter.all;
+
+  /// Key used to imperatively open / close / query the search bar without
+  /// storing any focus or controller state in this page.
+  final GlobalKey<AppSearchBarState> _searchBarKey =
+      GlobalKey<AppSearchBarState>();
+
+  // Convenience getter — avoids accessing the key repeatedly.
+  AppSearchBarState? get _searchBar => _searchBarKey.currentState;
 
   @override
   void dispose() {
     _ownScrollController.dispose();
     super.dispose();
   }
+
+  // ----------------------------------------------------------------- helpers
 
   List<Video> _videosFor(LibraryController library, HomeFilter filter) {
     final videos = switch (filter) {
@@ -70,7 +79,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _pickAndPlay(BuildContext context) async {
-    FocusScope.of(context).unfocus();
+    _searchBar?.hideKeyboard();
     FocusManager.instance.primaryFocus?.unfocus();
     try {
       final result = await FilePickerPlatform.instance.pickFiles(
@@ -106,6 +115,8 @@ class _HomePageState extends State<HomePage>
     } catch (_) {}
   }
 
+  // ----------------------------------------------------------------- build
+
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryController>();
@@ -119,7 +130,6 @@ class _HomePageState extends State<HomePage>
       );
     }
 
-    // The history filter is meaningless while history is switched off.
     final filter = (!showHistory && _filter == HomeFilter.recentlyPlayed)
         ? HomeFilter.all
         : _filter;
@@ -127,12 +137,10 @@ class _HomePageState extends State<HomePage>
     pruneSelection(videos);
 
     final prefs = library.prefsFor(CollectionKey.home);
-    // The shell owns a controller per tab so re-tapping Home scrolls to top;
-    // fall back to our own if this page is ever shown outside a tab.
-    final scrollController = TabScroll.maybeOf(context) ?? _ownScrollController;
+    final scrollController =
+        TabScroll.maybeOf(context) ?? _ownScrollController;
 
     // Update the shell's selection bar whenever the selection state changes.
-    // Using a post-frame callback avoids calling setState during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       TabSelectionBridge.set(
@@ -147,15 +155,26 @@ class _HomePageState extends State<HomePage>
       );
     });
 
+    // The search bar is built once and kept alive in the tree via its key.
+    final searchBar = AppSearchBar(
+      key: _searchBarKey,
+      hint: context.s.searchVideos,
+      onChanged: library.setQuery,
+      onClosed: library.clearQuery,
+    );
+
     return PopScope(
-      canPop: !isSearching && searchController.text.isEmpty && !selectionMode,
+      // Only block the pop while search is open or selection is active.
+      // Do NOT condition on focus state — that changes mid-animation and
+      // causes the pop handler to fire at the wrong moment.
+      canPop: !(_searchBar?.isOpen ?? false) && !selectionMode,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (selectionMode) {
           clearSelection();
           return;
         }
-        if (handleSearchPop(onClear: library.clearQuery)) return;
+        _searchBar?.handlePop();
       },
       child: Scaffold(
         extendBodyBehindAppBar: true,
@@ -174,35 +193,44 @@ class _HomePageState extends State<HomePage>
             onHover: (id, index) {
               final width = MediaQuery.sizeOf(context).width;
               final gridCols = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
-              final cols = library.viewMode == ViewMode.grid ? gridCols : 1;
+              final cols =
+                  library.viewMode == ViewMode.grid ? gridCols : 1;
               addToSelection(id, index, videos, cols);
             },
             onEnd: endDragSelection,
             child: BottomFade(
               child: FastScroller(
                 controller: scrollController,
-                // Starts below the floating header buttons.
                 topPadding: MediaQuery.paddingOf(context).top + 76,
                 bottomPadding: listBottomInset(context, extra: 0),
                 child: CustomScrollView(
                   key: const PageStorageKey('home_video_scroll'),
                   controller: scrollController,
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   slivers: [
                     SliverToBoxAdapter(
                       child: TabHeader(
                         title: context.s.appTitle,
-                        searching: isSearching,
-                        searchController: searchController,
-                        searchFocusNode: searchFocusNode,
-                        searchHint: context.s.searchVideos,
-                        onQueryChanged: library.setQuery,
-                        onToggleSearch: () => toggleSearch(onClear: library.clearQuery),
+                        searchOpen: _searchBar?.isOpen ?? false,
+                        searchBarSlot: searchBar,
+                        onToggleSearch: () {
+                          final bar = _searchBar;
+                          if (bar == null) return;
+                          if (bar.isOpen) {
+                            bar.close();
+                          } else {
+                            bar.open();
+                          }
+                          // Rebuild so the button icon switches immediately.
+                          setState(() {});
+                        },
                         onSortAndLayout: () => showSortSheet(
                           context,
                           CollectionKey.home,
                           showViewMode: true,
                         ),
+                        onOpenFile: () => _pickAndPlay(context),
                         selectionMode: selectionMode,
                         selectedCount: selectedIds.length,
                         totalCount: videos.length,
@@ -223,12 +251,17 @@ class _HomePageState extends State<HomePage>
                             : _FilterRow(
                                 selected: filter,
                                 showHistory: showHistory,
-                                onChanged: (value) => setState(() => _filter = value),
+                                onChanged: (value) =>
+                                    setState(() => _filter = value),
                               ),
                       ),
                     ),
                     SliverToBoxAdapter(
-                      child: SizedBox(height: selectionMode ? AppTheme.space4 : AppTheme.space12),
+                      child: SizedBox(
+                        height: selectionMode
+                            ? AppTheme.space4
+                            : AppTheme.space12,
+                      ),
                     ),
                     if (videos.isEmpty)
                       SliverFillRemaining(
@@ -239,43 +272,42 @@ class _HomePageState extends State<HomePage>
                       VideoSliver(
                         videos: videos,
                         viewMode: library.viewMode,
-                        marker: context.select<BookmarkController, StopMarker?>(
-                          (b) => b.markerFor(CollectionKey.home),
-                        ),
+                        marker: context
+                            .select<BookmarkController, StopMarker?>(
+                              (b) => b.markerFor(CollectionKey.home),
+                            ),
                         selectionMode: selectionMode,
                         selectedIds: selectedIds,
-                        // Custom order only applies to the unfiltered, unsearched list.
                         onReorder:
                             prefs.isManual &&
-                                filter == HomeFilter.all &&
-                                library.query.isEmpty
-                            ? (oldIndex, newIndex) => library.reorder(
-                                CollectionKey.home,
-                                videos,
-                                oldIndex,
-                                newIndex,
-                              )
-                            : null,
+                                    filter == HomeFilter.all &&
+                                    library.query.isEmpty
+                                ? (oldIndex, newIndex) => library.reorder(
+                                    CollectionKey.home,
+                                    videos,
+                                    oldIndex,
+                                    newIndex,
+                                  )
+                                : null,
                         progressOf: (video) => showHistory
                             ? library.historyFor(video.id)?.progress ?? 0
                             : 0,
-                        isFavorite: (video) => library.isFavorite(video.id),
-                        isPinned: (video) => library.isVideoPinned(video.id),
-                        subtitleOf:
-                            filter == HomeFilter.recentlyPlayed && showHistory
+                        isFavorite: (video) =>
+                            library.isFavorite(video.id),
+                        isPinned: (video) =>
+                            library.isVideoPinned(video.id),
+                        subtitleOf: filter == HomeFilter.recentlyPlayed &&
+                                showHistory
                             ? (video) {
-                                final record = library.historyFor(video.id);
+                                final record =
+                                    library.historyFor(video.id);
                                 if (record == null) return video.folderName;
                                 return '${Fmt.relativeDate(record.lastPlayed, context.s)}  ·  ${video.folderName}';
                               }
                             : null,
                         onTap: (video, index) {
-                          // Close search and hide keyboard before opening player.
-                          if (isSearching) {
-                            closeSearch(onClear: library.clearQuery);
-                          } else {
-                            hideKeyboard();
-                          }
+                          // Hide the keyboard before opening the player.
+                          _searchBar?.hideKeyboard();
                           FocusManager.instance.primaryFocus?.unfocus();
                           if (selectionMode) {
                             toggleSelection(video);
@@ -306,7 +338,6 @@ class _HomePageState extends State<HomePage>
                             toggleSelection(video);
                             return;
                           }
-                          // Archive and normal files both show the actions sheet.
                           showVideoActions(
                             context,
                             video,
@@ -351,11 +382,11 @@ class _HomePageState extends State<HomePage>
   }
 
   String _titleFor(HomeFilter filter) => switch (filter) {
-    HomeFilter.all => context.s.allVideos,
-    HomeFilter.recentlyAdded => context.s.filterRecentlyAdded,
-    HomeFilter.recentlyPlayed => context.s.filterRecentlyPlayed,
-    HomeFilter.archives => 'المضغوطة',
-  };
+        HomeFilter.all => context.s.allVideos,
+        HomeFilter.recentlyAdded => context.s.filterRecentlyAdded,
+        HomeFilter.recentlyPlayed => context.s.filterRecentlyPlayed,
+        HomeFilter.archives => 'المضغوطة',
+      };
 
   Widget _emptyFor(
     BuildContext context,
@@ -372,44 +403,46 @@ class _HomePageState extends State<HomePage>
     }
     return switch (filter) {
       HomeFilter.recentlyPlayed => EmptyState(
-        icon: AppIcons.history_rounded,
-        title: s.nothingWatchedYet,
-        message: s.nothingWatchedYetBody,
-      ),
-      HomeFilter.archives => EmptyState(
-        icon: Icons.folder_zip_rounded,
-        title: 'لا توجد ملفات مضغوطة ظاهرة',
-        message:
-            'لتصفح وتشغيل ملفات ZIP و RAR تلقائياً، تأكد من منح صلاحية قراءة الملفات أو اختر ملفاً يدوياً',
-        action: Wrap(
-          spacing: 12,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
-          children: [
-            FilledButton.icon(
-              onPressed: () async {
-                await PermissionService.requestManageStorage();
-                await library.refresh();
-              },
-              icon: const Icon(Icons.security_update_good_rounded, size: 18),
-              label: const Text('تفعيل إذن الوصول للملفات'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _pickAndPlay(context),
-              icon: const Icon(Icons.file_open_rounded, size: 18),
-              label: const Text('اختيار ملف مضغوط يدوياً'),
-            ),
-          ],
+          icon: AppIcons.history_rounded,
+          title: s.nothingWatchedYet,
+          message: s.nothingWatchedYetBody,
         ),
-      ),
+      HomeFilter.archives => EmptyState(
+          icon: Icons.folder_zip_rounded,
+          title: 'لا توجد ملفات مضغوطة ظاهرة',
+          message:
+              'لتصفح وتشغيل ملفات ZIP و RAR تلقائياً، تأكد من منح صلاحية قراءة الملفات أو اختر ملفاً يدوياً',
+          action: Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.icon(
+                onPressed: () async {
+                  await PermissionService.requestManageStorage();
+                  await library.refresh();
+                },
+                icon: const Icon(Icons.security_update_good_rounded, size: 18),
+                label: const Text('تفعيل إذن الوصول للملفات'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _pickAndPlay(context),
+                icon: const Icon(Icons.file_open_rounded, size: 18),
+                label: const Text('اختيار ملف مضغوط يدوياً'),
+              ),
+            ],
+          ),
+        ),
       _ => EmptyState(
-        icon: AppIcons.movie_outlined,
-        title: s.noVideosFound,
-        message: s.noVideosFoundBody,
-      ),
+          icon: AppIcons.movie_outlined,
+          title: s.noVideosFound,
+          message: s.noVideosFoundBody,
+        ),
     };
   }
 }
+
+// ---------------------------------------------------------------------------
 
 class _FilterRow extends StatelessWidget {
   const _FilterRow({
@@ -433,7 +466,6 @@ class _FilterRow extends StatelessWidget {
     };
 
     return SizedBox(
-      // Tall enough that the pills' shadows are not cut off by the list.
       height: 50,
       child: ShaderMask(
         blendMode: BlendMode.dstIn,
@@ -459,9 +491,7 @@ class _FilterRow extends StatelessWidget {
           children: [
             for (final entry in filters.entries)
               Padding(
-                padding: const EdgeInsetsDirectional.only(
-                  end: AppTheme.space8,
-                ),
+                padding: const EdgeInsetsDirectional.only(end: AppTheme.space8),
                 child: _FilterPill(
                   label: entry.value,
                   selected: selected == entry.key,
@@ -475,8 +505,6 @@ class _FilterRow extends StatelessWidget {
   }
 }
 
-/// Glass pill. The selected one is filled with the accent and carries a
-/// ticked circle; the rest stay quiet.
 class _FilterPill extends StatelessWidget {
   const _FilterPill({
     required this.label,
@@ -491,7 +519,6 @@ class _FilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final accent = theme.colorScheme.primary;
     final onAccent = theme.colorScheme.onPrimary;
 
@@ -521,7 +548,8 @@ class _FilterPill extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontSize: 13,
                     color: selected ? onAccent : context.muted,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight:
+                        selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ],
@@ -536,8 +564,12 @@ class _FilterPill extends StatelessWidget {
           ? DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: AppTheme.pillRadius,
-                color: accent.withValues(alpha: AppTheme.isSolid ? 1 : 0.72),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                color: accent.withValues(
+                  alpha: AppTheme.isSolid ? 1 : 0.72,
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.22),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: accent.withValues(alpha: 0.30),

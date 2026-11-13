@@ -5,14 +5,16 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/song.dart';
 import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
+import '../common/app_icon.dart';
+import '../common/app_search_bar.dart';
 import '../common/bottom_fade.dart';
 import '../common/empty_state.dart';
 import '../common/glass.dart';
-import '../common/search_focus.dart';
 import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
 import 'music_actions.dart';
@@ -22,8 +24,6 @@ import 'song_list_page.dart';
 import 'widgets/album_art.dart';
 import 'widgets/music_tiles.dart';
 import 'widgets/song_sliver.dart';
-import '../../core/theme/app_icons.dart';
-import '../common/app_icon.dart';
 
 /// The Music tab: a library home rather than one long list.
 ///
@@ -38,13 +38,19 @@ class MusicPage extends StatefulWidget {
   State<MusicPage> createState() => _MusicPageState();
 }
 
-class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> {
+class _MusicPageState extends State<MusicPage> {
   final ScrollController _ownScrollController = ScrollController();
+
+  /// Key used to imperatively open / close / query the search bar without
+  /// storing any focus or controller state in this page.
+  final GlobalKey<AppSearchBarState> _searchBarKey =
+      GlobalKey<AppSearchBarState>();
+
+  AppSearchBarState? get _searchBar => _searchBarKey.currentState;
 
   @override
   void initState() {
     super.initState();
-    // Reading the library waits for the tab to actually be opened.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<MusicController>().ensureLoaded();
     });
@@ -57,26 +63,41 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
   }
 
   void _open(Widget page) {
-    hideKeyboard();
-    FocusScope.of(context).unfocus();
+    _searchBar?.hideKeyboard();
     FocusManager.instance.primaryFocus?.unfocus();
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
+
+  // ----------------------------------------------------------------- build
 
   @override
   Widget build(BuildContext context) {
     final music = context.watch<MusicController>();
     final s = context.s;
-    final scrollController = TabScroll.maybeOf(context) ?? _ownScrollController;
+    final scrollController =
+        TabScroll.maybeOf(context) ?? _ownScrollController;
+
+    final searchBar = AppSearchBar(
+      key: _searchBarKey,
+      hint: s.searchMusic,
+      onChanged: music.setQuery,
+      onClosed: music.clearQuery,
+    );
 
     final header = TabHeader(
       title: s.music,
-      searching: isSearching,
-      searchController: searchController,
-      searchFocusNode: searchFocusNode,
-      searchHint: s.searchMusic,
-      onQueryChanged: music.setQuery,
-      onToggleSearch: () => toggleSearch(onClear: music.clearQuery),
+      searchOpen: _searchBar?.isOpen ?? false,
+      searchBarSlot: searchBar,
+      onToggleSearch: () {
+        final bar = _searchBar;
+        if (bar == null) return;
+        if (bar.isOpen) {
+          bar.close();
+        } else {
+          bar.open();
+        }
+        setState(() {});
+      },
       // Sorting belongs to the song list itself, not to the library home.
       onSortAndLayout: null,
     );
@@ -93,10 +114,10 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
     }
 
     return PopScope(
-      canPop: !isSearching && searchController.text.isEmpty,
+      canPop: !(_searchBar?.isOpen ?? false),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        if (handleSearchPop(onClear: music.clearQuery)) return;
+        _searchBar?.handlePop();
       },
       child: Scaffold(
         body: RefreshIndicator(
@@ -105,7 +126,8 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
           child: BottomFade(
             child: CustomScrollView(
               controller: scrollController,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
               slivers: [
                 SliverToBoxAdapter(child: header),
                 if (music.query.isNotEmpty)
@@ -133,6 +155,7 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
   }
 
   // ----------------------------------------------------------------- library
+
   List<Widget> _librarySlivers(BuildContext context, MusicController music) {
     final s = context.s;
     final recent = music.recentlyPlayed;
@@ -167,13 +190,15 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
               icon: AppIcons.mic_rounded,
               title: s.artists,
               count: '${music.artists.length}',
-              onTap: () => MusicSectionPage.open(context, MusicSection.artists),
+              onTap: () =>
+                  MusicSectionPage.open(context, MusicSection.artists),
             ),
             _LibraryTile(
               icon: AppIcons.folder_rounded,
               title: s.musicFolders,
               count: '${music.folders.length}',
-              onTap: () => MusicSectionPage.open(context, MusicSection.folders),
+              onTap: () =>
+                  MusicSectionPage.open(context, MusicSection.folders),
             ),
             _LibraryTile(
               icon: AppIcons.queue_music_rounded,
@@ -213,6 +238,7 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
           .toList(growable: false);
 
   // ------------------------------------------------------------------ search
+
   List<Widget> _searchSlivers(BuildContext context, MusicController music) {
     final s = context.s;
     final results = music.results;
@@ -281,6 +307,10 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Private widgets (unchanged from original)
+// ---------------------------------------------------------------------------
+
 /// What is playing now — or what played last, or a shuffle of everything
 /// when nothing has played yet — as one big card to pick up from.
 class _ListeningCard extends StatelessWidget {
@@ -297,9 +327,8 @@ class _ListeningCard extends StatelessWidget {
         );
 
     final playingSong = current is Song ? current : null;
-    final lastSong = music.recentlyPlayed.isEmpty
-        ? null
-        : music.recentlyPlayed.first;
+    final lastSong =
+        music.recentlyPlayed.isEmpty ? null : music.recentlyPlayed.first;
     final song = playingSong ?? lastSong;
 
     final label = playingSong != null
@@ -323,33 +352,33 @@ class _ListeningCard extends StatelessWidget {
     }
 
     Widget playButton(bool playing) => Material(
-      color: theme.colorScheme.primary,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: playingSong != null
-            ? context.read<PlaybackController>().togglePlay
-            : onTap,
-        child: SizedBox.square(
-          dimension: 50,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            transitionBuilder: (child, animation) =>
-                ScaleTransition(scale: animation, child: child),
-            child: AppIcon(
-              playing
-                  ? AppIcons.pause_rounded
-                  : (song == null
-                        ? AppIcons.shuffle_rounded
-                        : AppIcons.play_arrow_rounded),
-              key: ValueKey('$playing-${song == null}'),
-              color: theme.colorScheme.onPrimary,
-              size: 28,
+          color: theme.colorScheme.primary,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: playingSong != null
+                ? context.read<PlaybackController>().togglePlay
+                : onTap,
+            child: SizedBox.square(
+              dimension: 50,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(scale: animation, child: child),
+                child: AppIcon(
+                  playing
+                      ? AppIcons.pause_rounded
+                      : (song == null
+                            ? AppIcons.shuffle_rounded
+                            : AppIcons.play_arrow_rounded),
+                  key: ValueKey('$playing-${song == null}'),
+                  color: theme.colorScheme.onPrimary,
+                  size: 28,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.pageMargin),
@@ -450,8 +479,6 @@ class _LibraryTile extends StatelessWidget {
   static const double _icon = 44;
   static const double _padding = 14;
 
-  /// Tall enough for the icon or the two lines of text, whichever is taller,
-  /// at the user's font size.
   static double heightFor(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final text = scaler.scale(15) * 1.35 + 2 + scaler.scale(12.5) * 1.35;
@@ -570,8 +597,7 @@ class _CoverRow extends StatelessWidget {
                 horizontal: AppTheme.pageMargin,
               ),
               itemCount: songs.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(width: AppTheme.space12),
+              separatorBuilder: (_, _) => const SizedBox(width: AppTheme.space12),
               itemBuilder: (context, index) {
                 final song = songs[index];
                 final playing = song.id == currentId;
@@ -633,7 +659,9 @@ class _CoverRow extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            song.artist.isEmpty ? s.unknownArtist : song.artist,
+                            song.artist.isEmpty
+                                ? s.unknownArtist
+                                : song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -699,9 +727,9 @@ class _StatusView extends StatelessWidget {
               const SizedBox(height: AppTheme.space16),
               Text(
                 s.scanningMusic,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: context.muted),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: context.muted,
+                ),
               ),
             ],
           ),

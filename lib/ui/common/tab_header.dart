@@ -6,27 +6,24 @@ import '../../data/models/enums.dart';
 import '../settings/settings_button.dart';
 import 'glass.dart';
 import '../../core/theme/app_icons.dart';
-import 'app_icon.dart';
 
-/// The header of a main tab: settings and search together at the start, the
-/// title at the far end, and optionally one button for sort and layout — all
-/// floating glass on a single row.
+/// The header of a main tab: settings and search at the start, the title at
+/// the far end, and optionally a sort-and-layout button — all floating glass
+/// on a single row.
 ///
-/// Search opens under the row, only while it is in use, so the header costs
-/// no extra height the rest of the time.
+/// Search state is now fully owned by the page. The header simply accepts an
+/// optional [searchBarSlot] widget that it places below the button row (inside
+/// an [AnimatedSize] so the header grows/shrinks smoothly). The page builds
+/// and passes an [AppSearchBar] when search is open.
 class TabHeader extends StatelessWidget {
   const TabHeader({
     super.key,
     required this.title,
-    required this.searching,
-    required this.searchController,
-    required this.searchHint,
-    required this.onQueryChanged,
+    required this.searchOpen,
     required this.onToggleSearch,
     required this.onSortAndLayout,
+    required this.searchBarSlot,
     this.onOpenFile,
-    this.searchFocusNode,
-    this.onSearchSubmitted,
     this.selectionMode = false,
     this.selectedCount = 0,
     this.totalCount = 0,
@@ -38,25 +35,25 @@ class TabHeader extends StatelessWidget {
   });
 
   final String title;
-  final bool searching;
-  final TextEditingController searchController;
-  final String searchHint;
-  final ValueChanged<String> onQueryChanged;
+
+  /// Whether the search button should appear in its "close" / active state.
+  final bool searchOpen;
+
+  /// Called when the search icon button is tapped.
   final VoidCallback onToggleSearch;
 
-  /// Null hides the button, for lists with nothing to sort.
+  /// Null hides the sort-and-layout button, for lists with nothing to sort.
   final VoidCallback? onSortAndLayout;
 
   /// Optional file / archive picker button.
   final VoidCallback? onOpenFile;
 
-  /// Focus node for the search field (controls keyboard without autofocus loop).
-  final FocusNode? searchFocusNode;
+  /// The search bar widget to place below the button row.
+  /// Pass [SizedBox.shrink()] (or null) when search is closed.
+  /// Pass an [AppSearchBar] instance when open.
+  final Widget searchBarSlot;
 
-  /// Optional callback when the user taps the Search action on the keyboard.
-  final ValueChanged<String>? onSearchSubmitted;
-
-  /// Selection mode state and callbacks
+  /// Selection mode state and callbacks.
   final bool selectionMode;
   final int selectedCount;
   final int totalCount;
@@ -76,11 +73,9 @@ class TabHeader extends StatelessWidget {
         const SettingsButton(),
         const SizedBox(width: AppTheme.space12),
         GlassIconButton(
-          tooltip: searching ? s.closeSearch : s.search,
-          icon: searching
-              ? AppIcons.close_rounded
-              : AppIcons.search_rounded,
-          selected: searching,
+          tooltip: searchOpen ? s.closeSearch : s.search,
+          icon: searchOpen ? AppIcons.close_rounded : AppIcons.search_rounded,
+          selected: searchOpen,
           onPressed: onToggleSearch,
         ),
         if (onOpenFile != null) ...[
@@ -102,9 +97,7 @@ class TabHeader extends StatelessWidget {
         // The title fills the rest of the row, pushed to the far end.
         Expanded(
           child: Padding(
-            padding: const EdgeInsetsDirectional.only(
-              start: AppTheme.space12,
-            ),
+            padding: const EdgeInsetsDirectional.only(start: AppTheme.space12),
             child: _Title(title),
           ),
         ),
@@ -178,31 +171,16 @@ class TabHeader extends StatelessWidget {
             switchOutCurve: Curves.easeInCubic,
             child: selectionMode ? selectionRow : normalRow,
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: (!selectionMode && searching)
-                ? Padding(
-                    padding: const EdgeInsets.only(top: AppTheme.space16),
-                    child: GlassSearchField(
-                      controller: searchController,
-                      hint: searchHint,
-                      onChanged: onQueryChanged,
-                      focusNode: searchFocusNode,
-                      onSubmitted: onSearchSubmitted,
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
+          // The search bar slot is provided by the page. When search is closed
+          // the page passes SizedBox.shrink() so this collapses to zero height.
+          if (!selectionMode) searchBarSlot,
         ],
       ),
     );
   }
 }
 
-/// The tab's name, pushed to the far end of the row. The classic look marks
-/// it with a short accent bar in front, like a bookmark.
+/// The tab's name, pushed to the far end of the row.
 class _Title extends StatelessWidget {
   const _Title(this.title);
 
@@ -226,8 +204,6 @@ class _Title extends StatelessWidget {
       alignment: AlignmentDirectional.centerEnd,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        // The bar sits before the name in reading order, whatever the
-        // language: on the left of a Latin title.
         textDirection: TextDirection.ltr,
         children: [
           Container(
@@ -241,61 +217,6 @@ class _Title extends StatelessWidget {
           const SizedBox(width: AppTheme.space12),
           Flexible(child: text),
         ],
-      ),
-    );
-  }
-}
-
-/// Glass search field. It only changes how searching looks; the query goes
-/// to whatever list the page already filters.
-class GlassSearchField extends StatelessWidget {
-  const GlassSearchField({
-    super.key,
-    required this.controller,
-    required this.hint,
-    required this.onChanged,
-    this.focusNode,
-    this.onSubmitted,
-  });
-
-  final TextEditingController controller;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  final FocusNode? focusNode;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GlassSurface(
-      radius: AppTheme.pillRadius,
-      floating: true,
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        autofocus: true,
-        onChanged: onChanged,
-        onSubmitted: (value) {
-          focusNode?.unfocus();
-          onSubmitted?.call(value);
-        },
-        textInputAction: TextInputAction.search,
-        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-        cursorColor: theme.colorScheme.primary,
-        decoration: InputDecoration(
-          hintText: hint,
-          filled: false,
-          prefixIcon: AppIcon(
-            AppIcons.search_rounded,
-            size: 22,
-            color: theme.colorScheme.primary,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-        ),
       ),
     );
   }

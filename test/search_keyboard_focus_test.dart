@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:main_video/core/l10n/app_localizations.dart';
+import 'package:main_video/ui/common/app_search_bar.dart';
 import 'package:main_video/ui/common/glass.dart';
-import 'package:main_video/ui/common/search_focus.dart';
-import 'package:main_video/ui/common/tab_header.dart';
 
-class TestSearchHostWidget extends StatefulWidget {
-  const TestSearchHostWidget({super.key});
+// ---------------------------------------------------------------------------
+// Minimal host that embeds AppSearchBar the same way the pages do.
+// ---------------------------------------------------------------------------
+
+class _Host extends StatefulWidget {
+  const _Host();
 
   @override
-  TestSearchHostWidgetState createState() => TestSearchHostWidgetState();
+  _HostState createState() => _HostState();
 }
 
-class TestSearchHostWidgetState extends State<TestSearchHostWidget>
-    with SearchFocusState<TestSearchHostWidget> {
-  int clearCallCount = 0;
-  String submittedQuery = '';
+class _HostState extends State<_Host> {
+  final GlobalKey<AppSearchBarState> barKey = GlobalKey<AppSearchBarState>();
+  String lastQuery = '';
+  int closedCount = 0;
 
-  void onClear() {
-    clearCallCount++;
-  }
+  AppSearchBarState get bar => barKey.currentState!;
 
   @override
   Widget build(BuildContext context) {
@@ -27,204 +28,201 @@ class TestSearchHostWidgetState extends State<TestSearchHostWidget>
       localizationsDelegates: const [AppLocalizations.delegate],
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
-        body: PopScope(
-          canPop: !isSearching && searchController.text.isEmpty && !searchFocusNode.hasFocus,
-          onPopInvokedWithResult: (didPop, result) {
-            if (didPop) return;
-            handleSearchPop(onClear: onClear);
-          },
-          child: Column(
-            children: [
-              TabHeader(
-                title: 'Library',
-                searching: isSearching,
-                searchController: searchController,
-                searchFocusNode: searchFocusNode,
-                searchHint: 'Search...',
-                onQueryChanged: (_) {},
-                onToggleSearch: () => toggleSearch(onClear: onClear),
-                onSortAndLayout: null,
-                onSearchSubmitted: (q) => submittedQuery = q,
-              ),
-              Expanded(
-                child: CustomScrollView(
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  slivers: [
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => ListTile(
-                          title: Text('Item $index'),
-                          onTap: () => hideKeyboard(),
-                        ),
-                        childCount: 50,
+        body: Column(
+          children: [
+            // Toggle button — simulates the search icon in the header.
+            ElevatedButton(
+              key: const Key('toggle'),
+              onPressed: () {
+                final b = barKey.currentState!;
+                b.isOpen ? b.close() : b.open();
+                setState(() {});
+              },
+              child: const Text('Toggle'),
+            ),
+            // The bar lives OUTSIDE the scroll view — same as in the pages.
+            AppSearchBar(
+              key: barKey,
+              hint: 'Search...',
+              onChanged: (q) => lastQuery = q,
+              onClosed: () => closedCount++,
+            ),
+            Expanded(
+              child: CustomScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => ListTile(
+                        key: Key('item_$index'),
+                        title: Text('Item $index'),
+                        onTap: () => barKey.currentState?.hideKeyboard(),
                       ),
+                      childCount: 50,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+
 void main() {
-  group('SearchFocusState Lifecycle & Repetitive Toggle', () {
-    testWidgets('Tapping search button opens keyboard and stays open; repeating 10 times maintains stability', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
+  group('AppSearchBar — open / close / focus lifecycle', () {
+    testWidgets('starts closed; no TextField visible', (tester) async {
+      await tester.pumpWidget(const _Host());
       await tester.pumpAndSettle();
-
-      final state = key.currentState!;
-      expect(state.isSearching, isFalse);
-      expect(state.searchFocusNode.hasFocus, isFalse);
-
-      // Repeat open / close 10 times to verify no state leaks or oscillating loops
-      for (int i = 0; i < 10; i++) {
-        // Tap to open search
-        state.toggleSearch(onClear: state.onClear);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300)); // allow AnimatedSize to finish
-
-        expect(state.isSearching, isTrue, reason: 'Iteration $i: isSearching should be true');
-        expect(state.searchFocusNode.hasFocus, isTrue, reason: 'Iteration $i: FocusNode should have focus');
-
-        // Tap to close search
-        state.toggleSearch(onClear: state.onClear);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-
-        expect(state.isSearching, isFalse, reason: 'Iteration $i: isSearching should be false');
-        expect(state.searchFocusNode.hasFocus, isFalse, reason: 'Iteration $i: FocusNode should lose focus');
-        expect(state.searchController.text, isEmpty);
-      }
-
-      expect(state.clearCallCount, 10);
+      expect(find.byType(TextField), findsNothing);
     });
-  });
 
-  group('Keyboard Action Search & Submission', () {
-    testWidgets('Pressing Search (onSubmitted) hides the keyboard while keeping text and results', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
+    testWidgets('open() shows TextField; close() hides it', (tester) async {
+      await tester.pumpWidget(const _Host());
       await tester.pumpAndSettle();
 
-      final state = key.currentState!;
+      final hostState = tester.state<_HostState>(find.byType(_Host));
 
-      // Open search
-      state.toggleSearch(onClear: state.onClear);
+      hostState.bar.open();
       await tester.pumpAndSettle();
 
-      // Enter query
-      state.searchController.text = 'flutter';
-      expect(state.searchFocusNode.hasFocus, isTrue);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(hostState.bar.isOpen, isTrue);
 
-      // Submit search via TextField action
-      final textFieldFinder = find.byType(TextField);
-      expect(textFieldFinder, findsOneWidget);
+      hostState.bar.close();
+      await tester.pumpAndSettle();
 
+      expect(find.byType(TextField), findsNothing);
+      expect(hostState.bar.isOpen, isFalse);
+    });
+
+    testWidgets('opens 10 times without leaking state', (tester) async {
+      await tester.pumpWidget(const _Host());
+      await tester.pumpAndSettle();
+
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+
+      for (var i = 0; i < 10; i++) {
+        hostState.bar.open();
+        await tester.pumpAndSettle();
+        expect(hostState.bar.isOpen, isTrue, reason: 'iteration $i open');
+
+        hostState.bar.close();
+        await tester.pumpAndSettle();
+        expect(hostState.bar.isOpen, isFalse, reason: 'iteration $i closed');
+      }
+    });
+
+    testWidgets('onChanged fires when user types', (tester) async {
+      await tester.pumpWidget(const _Host());
+      await tester.pumpAndSettle();
+
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+      hostState.bar.open();
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'flutter');
+      await tester.pumpAndSettle();
+
+      expect(hostState.lastQuery, 'flutter');
+    });
+
+    testWidgets('onClosed fires when close() is called', (tester) async {
+      await tester.pumpWidget(const _Host());
+      await tester.pumpAndSettle();
+
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+      hostState.bar.open();
+      await tester.pumpAndSettle();
+      hostState.bar.close();
+      await tester.pumpAndSettle();
+
+      expect(hostState.closedCount, 1);
+    });
+
+    testWidgets('onSubmitted hides keyboard but keeps bar open', (tester) async {
+      await tester.pumpWidget(const _Host());
+      await tester.pumpAndSettle();
+
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+      hostState.bar.open();
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'music');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
 
-      // Keyboard should be dismissed (unfocused), but search and query remain
-      expect(state.searchFocusNode.hasFocus, isFalse);
-      expect(state.isSearching, isTrue);
-      expect(state.searchController.text, 'flutter');
-      expect(state.submittedQuery, 'flutter');
+      // Bar stays open after submission.
+      expect(hostState.bar.isOpen, isTrue);
     });
 
-    testWidgets('Tapping the search field again restores keyboard focus', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
+    testWidgets('handlePop — first call hides keyboard, second call closes',
+        (tester) async {
+      await tester.pumpWidget(const _Host());
       await tester.pumpAndSettle();
 
-      final state = key.currentState!;
-      state.toggleSearch(onClear: state.onClear);
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+      hostState.bar.open();
       await tester.pumpAndSettle();
 
-      // Hide keyboard
-      state.hideKeyboard();
+      // The field gains focus via autofocus.
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode?.hasFocus,
+        isTrue,
+      );
+
+      // First back: hides keyboard (focus → false), bar stays open.
+      final consumed1 = hostState.bar.handlePop();
       await tester.pumpAndSettle();
-      expect(state.searchFocusNode.hasFocus, isFalse);
+      expect(consumed1, isTrue);
+      expect(hostState.bar.isOpen, isTrue);
 
-      // Tap on TextField
-      await tester.tap(find.byType(TextField));
+      // Second back: closes the bar.
+      final consumed2 = hostState.bar.handlePop();
       await tester.pumpAndSettle();
+      expect(consumed2, isTrue);
+      expect(hostState.bar.isOpen, isFalse);
 
-      expect(state.searchFocusNode.hasFocus, isTrue);
-    });
-  });
-
-  group('Scroll & Play Keyboard Dismissal', () {
-    testWidgets('Tapping a result list item calls hideKeyboard to dismiss keyboard', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
-      await tester.pumpAndSettle();
-
-      final state = key.currentState!;
-      state.toggleSearch(onClear: state.onClear);
-      await tester.pumpAndSettle();
-      expect(state.searchFocusNode.hasFocus, isTrue);
-
-      // Tap on a list item
-      await tester.tap(find.text('Item 0'));
-      await tester.pumpAndSettle();
-
-      expect(state.searchFocusNode.hasFocus, isFalse);
-      expect(state.isSearching, isTrue); // search remains open
+      // Third back: nothing to handle.
+      final consumed3 = hostState.bar.handlePop();
+      expect(consumed3, isFalse);
     });
 
-    testWidgets('CustomScrollView has onDrag keyboardDismissBehavior', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
+    testWidgets('hideKeyboard() does not close the bar', (tester) async {
+      await tester.pumpWidget(const _Host());
       await tester.pumpAndSettle();
 
-      final scrollView = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
-      expect(scrollView.keyboardDismissBehavior, ScrollViewKeyboardDismissBehavior.onDrag);
+      final hostState = tester.state<_HostState>(find.byType(_Host));
+      hostState.bar.open();
+      await tester.pumpAndSettle();
+
+      hostState.bar.hideKeyboard();
+      await tester.pumpAndSettle();
+
+      expect(hostState.bar.isOpen, isTrue);
+      expect(find.byType(TextField), findsOneWidget);
     });
-  });
 
-  group('Two-Stage Back Button Behavior', () {
-    testWidgets('First back press hides keyboard, second back press closes search', (tester) async {
-      final key = GlobalKey<TestSearchHostWidgetState>();
-      await tester.pumpWidget(TestSearchHostWidget(key: key));
+    testWidgets('CustomScrollView has onDrag keyboardDismissBehavior',
+        (tester) async {
+      await tester.pumpWidget(const _Host());
       await tester.pumpAndSettle();
 
-      final state = key.currentState!;
-
-      // 1. Open search and type query
-      state.toggleSearch(onClear: state.onClear);
-      await tester.pumpAndSettle();
-      state.searchController.text = 'music';
-      expect(state.searchFocusNode.hasFocus, isTrue);
-      expect(state.isSearching, isTrue);
-
-      // 2. First back button press: should hide keyboard only
-      final handledFirst = state.handleSearchPop(onClear: state.onClear);
-      await tester.pumpAndSettle();
-
-      expect(handledFirst, isTrue);
-      expect(state.searchFocusNode.hasFocus, isFalse); // keyboard hidden
-      expect(state.isSearching, isTrue); // search still open!
-      expect(state.searchController.text, 'music'); // query preserved!
-
-      // 3. Second back button press: should close search
-      final handledSecond = state.handleSearchPop(onClear: state.onClear);
-      await tester.pumpAndSettle();
-
-      expect(handledSecond, isTrue);
-      expect(state.isSearching, isFalse); // search closed!
-      expect(state.searchController.text, isEmpty); // query cleared!
-
-      // 4. Third back press: neither focused nor searching -> not handled (allows page pop)
-      final handledThird = state.handleSearchPop(onClear: state.onClear);
-      expect(handledThird, isFalse);
+      final scrollView = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView));
+      expect(
+        scrollView.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
     });
   });
 
-  group('GlassIconButton Focus Guard', () {
+  group('AppSearchBar — visual / GlassIconButton focus guard', () {
     testWidgets('GlassIconButton has canRequestFocus: false', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -237,10 +235,8 @@ void main() {
           ),
         ),
       );
-
       final inkWell = tester.widget<InkWell>(find.byType(InkWell));
       expect(inkWell.canRequestFocus, isFalse);
     });
   });
 }
-
