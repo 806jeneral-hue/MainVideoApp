@@ -10,11 +10,12 @@ const double kFadeBand = 28;
 
 /// Keeps a list from showing in the strip under the floating bottom bars.
 ///
-/// Rows do pass behind the bars — that is what the frosting is for — but the
-/// gap between the bars and the bottom edge of the phone belongs to the page,
-/// not to the list, so the list is cut off there. Nothing can flash into that
-/// gap while scrolling or refreshing, and rows fade out as they go under the
-/// bars (see [EmergeFromBottom]).
+/// Rows pass behind the frosted glass bars, remaining visible until most of
+/// their height has sunk behind the bar line, but the gap between the bars and
+/// the bottom edge of the phone belongs to the page, not to the list, so the
+/// list is cut off there. Nothing can flash into that gap while scrolling or
+/// refreshing, and rows fade out smoothly as they sink under the bars (see
+/// [EmergeFromBottom]).
 class BottomFade extends StatelessWidget {
   const BottomFade({super.key, required this.child});
 
@@ -71,15 +72,32 @@ class _AboveTheGap extends CustomClipper<Rect> {
   bool shouldReclip(_AboveTheGap oldClipper) => oldClipper.strip != strip;
 }
 
-/// What always sits at the foot of the screen: the navigation bar on a tab,
+/// What always sits at the foot of the screen: the navigation bar on a tab
+/// (or the selection actions bar that replaces it in multi-select mode),
 /// nothing on a page opened over the tabs, plus the phone's own inset.
 ///
 /// Unlike the Scaffold's padding it leaves the mini player out, so a list
 /// keeps its rows exactly as they are when the mini player comes and goes —
 /// the mini player simply floats over the last one.
-double steadyBottomInset(BuildContext context) =>
-    SystemBottomInset.of(context) +
-    (TabScroll.isTab(context) ? AppBottomNav.outerHeight : 0);
+double steadyBottomInset(BuildContext context) {
+  if (!TabScroll.isTab(context)) return 0;
+
+  final bridge =
+      context.dependOnInheritedWidgetOfExactType<TabSelectionBridge>();
+  final selectionBar = bridge?.selectionBarNotifier.value;
+
+  double barHeight = AppBottomNav.outerHeight;
+  if (bridge != null && selectionBar != null) {
+    if (selectionBar is SizedBox &&
+        (selectionBar.height == 0 || selectionBar.width == 0)) {
+      barHeight = 0;
+    } else {
+      barHeight = AppBottomNav.outerHeight;
+    }
+  }
+
+  return SystemBottomInset.of(context) + barHeight;
+}
 
 /// Bottom padding that lets the last item scroll all the way clear of the
 /// bars, so it can be seen at full strength above them.
