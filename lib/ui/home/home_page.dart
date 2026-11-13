@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,25 +8,22 @@ import '../../core/utils/formatters.dart';
 import '../../data/models/bookmark.dart';
 import '../../data/models/collection_prefs.dart';
 import '../../data/models/enums.dart';
-import '../../data/models/song.dart';
 import '../../data/models/video.dart';
 import '../../data/services/archive_playback_service.dart';
 import '../../data/services/permission_service.dart';
 import '../../state/bookmark_controller.dart';
 import '../../state/library_controller.dart';
-import '../../state/playback_controller.dart';
 import '../../state/settings_controller.dart';
 import '../common/app_search_bar.dart';
 import '../common/bottom_fade.dart';
-import '../common/glass.dart';
 import '../common/drag_select.dart';
 import '../common/empty_state.dart';
 import '../common/fast_scroller.dart';
+import '../common/glass.dart';
 import '../common/selection.dart';
 import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
 import '../common/video_slivers.dart';
-import '../music/now_playing_page.dart';
 import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'widgets/library_status_view.dart';
@@ -48,12 +44,13 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
   final ScrollController _ownScrollController = ScrollController();
   HomeFilter _filter = HomeFilter.all;
 
-  /// Key used to imperatively open / close / query the search bar without
-  /// storing any focus or controller state in this page.
+  /// Single source of truth for whether search is open.
+  /// Governs both the header icon and the search bar.
+  bool _isSearchOpen = false;
+
   final GlobalKey<AppSearchBarState> _searchBarKey =
       GlobalKey<AppSearchBarState>();
 
-  // Convenience getter — avoids accessing the key repeatedly.
   AppSearchBarState? get _searchBar => _searchBarKey.currentState;
 
   @override
@@ -76,43 +73,6 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
     final q = library.query.trim().toLowerCase();
     if (filter == HomeFilter.all || q.isEmpty) return videos;
     return videos.where((v) => v.title.toLowerCase().contains(q)).toList();
-  }
-
-  Future<void> _pickAndPlay(BuildContext context) async {
-    _searchBar?.hideKeyboard();
-    FocusManager.instance.primaryFocus?.unfocus();
-    try {
-      final result = await FilePickerPlatform.instance.pickFiles(
-        type: FileType.any,
-      );
-      if (result.isNotEmpty && result.first.path != null) {
-        final path = result.first.path!;
-        if (!context.mounted) return;
-        if (ArchivePlaybackService.isArchive(path)) {
-          await ArchivePlaybackService.openArchiveAndPlay(context, path);
-        } else {
-          final isAud = ArchivePlaybackService.isAudio(path);
-          if (isAud) {
-            final item = Song.fromPath(path);
-            final playback = context.read<PlaybackController>();
-            await playback.open(
-              queue: [item],
-              startIndex: 0,
-              queueTitle: item.displayName,
-            );
-            if (context.mounted) openNowPlaying(context);
-          } else {
-            final item = Video.fromPath(path);
-            await openPlayer(
-              context,
-              queue: [item],
-              startIndex: 0,
-              queueTitle: item.displayName,
-            );
-          }
-        }
-      }
-    } catch (_) {}
   }
 
   // ----------------------------------------------------------------- build
@@ -155,19 +115,20 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
       );
     });
 
-    // The search bar is built once and kept alive in the tree via its key.
     final searchBar = AppSearchBar(
       key: _searchBarKey,
+      isOpen: _isSearchOpen,
       hint: context.s.searchVideos,
+      initialQuery: library.query,
       onChanged: library.setQuery,
-      onClosed: library.clearQuery,
+      onClosed: () {
+        setState(() => _isSearchOpen = false);
+        library.clearQuery();
+      },
     );
 
     return PopScope(
-      // Only block the pop while search is open or selection is active.
-      // Do NOT condition on focus state — that changes mid-animation and
-      // causes the pop handler to fire at the wrong moment.
-      canPop: !(_searchBar?.isOpen ?? false) && !selectionMode,
+      canPop: !_isSearchOpen && !selectionMode,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (selectionMode) {
@@ -212,25 +173,21 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                     SliverToBoxAdapter(
                       child: TabHeader(
                         title: context.s.appTitle,
-                        searchOpen: _searchBar?.isOpen ?? false,
+                        searchOpen: _isSearchOpen,
                         searchBarSlot: searchBar,
                         onToggleSearch: () {
-                          final bar = _searchBar;
-                          if (bar == null) return;
-                          if (bar.isOpen) {
-                            bar.close();
-                          } else {
-                            bar.open();
-                          }
-                          // Rebuild so the button icon switches immediately.
-                          setState(() {});
+                          setState(() {
+                            _isSearchOpen = !_isSearchOpen;
+                            if (!_isSearchOpen) {
+                              library.clearQuery();
+                            }
+                          });
                         },
                         onSortAndLayout: () => showSortSheet(
                           context,
                           CollectionKey.home,
                           showViewMode: true,
                         ),
-                        onOpenFile: () => _pickAndPlay(context),
                         selectionMode: selectionMode,
                         selectedCount: selectedIds.length,
                         totalCount: videos.length,
@@ -306,7 +263,7 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                               }
                             : null,
                         onTap: (video, index) {
-                          // Hide the keyboard before opening the player.
+                          // Hide keyboard before opening player.
                           _searchBar?.hideKeyboard();
                           FocusManager.instance.primaryFocus?.unfocus();
                           if (selectionMode) {
@@ -411,26 +368,14 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
           icon: Icons.folder_zip_rounded,
           title: 'لا توجد ملفات مضغوطة ظاهرة',
           message:
-              'لتصفح وتشغيل ملفات ZIP و RAR تلقائياً، تأكد من منح صلاحية قراءة الملفات أو اختر ملفاً يدوياً',
-          action: Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: () async {
-                  await PermissionService.requestManageStorage();
-                  await library.refresh();
-                },
-                icon: const Icon(Icons.security_update_good_rounded, size: 18),
-                label: const Text('تفعيل إذن الوصول للملفات'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => _pickAndPlay(context),
-                icon: const Icon(Icons.file_open_rounded, size: 18),
-                label: const Text('اختيار ملف مضغوط يدوياً'),
-              ),
-            ],
+              'لتصفح وتشغيل ملفات ZIP و RAR تلقائياً، تأكد من منح صلاحية قراءة الملفات',
+          action: FilledButton.icon(
+            onPressed: () async {
+              await PermissionService.requestManageStorage();
+              await library.refresh();
+            },
+            icon: const Icon(Icons.security_update_good_rounded, size: 18),
+            label: const Text('تفعيل إذن الوصول للملفات'),
           ),
         ),
       _ => EmptyState(

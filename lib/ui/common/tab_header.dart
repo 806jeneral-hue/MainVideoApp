@@ -11,10 +11,8 @@ import '../../core/theme/app_icons.dart';
 /// the far end, and optionally a sort-and-layout button — all floating glass
 /// on a single row.
 ///
-/// Search state is now fully owned by the page. The header simply accepts an
-/// optional [searchBarSlot] widget that it places below the button row (inside
-/// an [AnimatedSize] so the header grows/shrinks smoothly). The page builds
-/// and passes an [AppSearchBar] when search is open.
+/// Search state is fully driven by [searchOpen], passed directly by the page.
+/// The header places [searchBarSlot] below the button row.
 class TabHeader extends StatelessWidget {
   const TabHeader({
     super.key,
@@ -23,7 +21,6 @@ class TabHeader extends StatelessWidget {
     required this.onToggleSearch,
     required this.onSortAndLayout,
     required this.searchBarSlot,
-    this.onOpenFile,
     this.selectionMode = false,
     this.selectedCount = 0,
     this.totalCount = 0,
@@ -44,9 +41,6 @@ class TabHeader extends StatelessWidget {
 
   /// Null hides the sort-and-layout button, for lists with nothing to sort.
   final VoidCallback? onSortAndLayout;
-
-  /// Optional file / archive picker button.
-  final VoidCallback? onOpenFile;
 
   /// The search bar widget to place below the button row.
   /// Pass [SizedBox.shrink()] (or null) when search is closed.
@@ -78,14 +72,6 @@ class TabHeader extends StatelessWidget {
           selected: searchOpen,
           onPressed: onToggleSearch,
         ),
-        if (onOpenFile != null) ...[
-          const SizedBox(width: AppTheme.space12),
-          GlassIconButton(
-            tooltip: 'فتح ملف أو أرشيف مضغوط',
-            icon: Icons.folder_zip_rounded,
-            onPressed: onOpenFile,
-          ),
-        ],
         if (onSortAndLayout != null) ...[
           const SizedBox(width: AppTheme.space12),
           GlassIconButton(

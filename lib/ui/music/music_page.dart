@@ -41,8 +41,10 @@ class MusicPage extends StatefulWidget {
 class _MusicPageState extends State<MusicPage> {
   final ScrollController _ownScrollController = ScrollController();
 
-  /// Key used to imperatively open / close / query the search bar without
-  /// storing any focus or controller state in this page.
+  /// Single source of truth for whether search is open.
+  /// Governs both the header icon and the search bar.
+  bool _isSearchOpen = false;
+
   final GlobalKey<AppSearchBarState> _searchBarKey =
       GlobalKey<AppSearchBarState>();
 
@@ -79,24 +81,27 @@ class _MusicPageState extends State<MusicPage> {
 
     final searchBar = AppSearchBar(
       key: _searchBarKey,
+      isOpen: _isSearchOpen,
       hint: s.searchMusic,
+      initialQuery: music.query,
       onChanged: music.setQuery,
-      onClosed: music.clearQuery,
+      onClosed: () {
+        setState(() => _isSearchOpen = false);
+        music.clearQuery();
+      },
     );
 
     final header = TabHeader(
       title: s.music,
-      searchOpen: _searchBar?.isOpen ?? false,
+      searchOpen: _isSearchOpen,
       searchBarSlot: searchBar,
       onToggleSearch: () {
-        final bar = _searchBar;
-        if (bar == null) return;
-        if (bar.isOpen) {
-          bar.close();
-        } else {
-          bar.open();
-        }
-        setState(() {});
+        setState(() {
+          _isSearchOpen = !_isSearchOpen;
+          if (!_isSearchOpen) {
+            music.clearQuery();
+          }
+        });
       },
       // Sorting belongs to the song list itself, not to the library home.
       onSortAndLayout: null,
@@ -114,7 +119,7 @@ class _MusicPageState extends State<MusicPage> {
     }
 
     return PopScope(
-      canPop: !(_searchBar?.isOpen ?? false),
+      canPop: !_isSearchOpen,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         _searchBar?.handlePop();

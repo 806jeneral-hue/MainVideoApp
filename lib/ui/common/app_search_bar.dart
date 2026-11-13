@@ -7,8 +7,7 @@ import 'glass.dart';
 // ---------------------------------------------------------------------------
 // Debug logging flag.
 // Set to true to print focus / keyboard / viewInsets events to the console.
-// Keep false in production — this is a compile-time constant so the compiler
-// strips every if-block when it is false.
+// Keep false in production.
 // ---------------------------------------------------------------------------
 const bool kSearchDebugLog = false;
 
@@ -22,31 +21,27 @@ void _log(String msg) {
 /// A self-contained search bar that manages its own [TextEditingController]
 /// and [FocusNode].
 ///
-/// **Usage contract**
-/// - The *page* owns a [GlobalKey<AppSearchBarState>] and calls
-///   [AppSearchBarState.open] / [AppSearchBarState.close] imperatively.
-/// - The page does NOT manage focus, controllers, or keyboard state.
-/// - Callbacks [onChanged] and [onClosed] notify the page of query and
-///   close events.
-///
-/// **Focus safety**
-/// - Only [autofocus: true] is used when the field is first inserted.
-///   [requestFocus] is never called manually.
-/// - [unfocus] is called only inside [onSubmitted], [close], and when the
-///   user taps the clear/close button — never from [build], listeners, or
-///   post-frame callbacks.
-/// - No [WidgetsBindingObserver] / [didChangeMetrics].
+/// **Single Source of Truth**
+/// - The open/close state is driven by [isOpen].
+/// - The parent page owns the boolean (e.g. `_isSearchOpen`) and passes it
+///   consistently to both [AppSearchBar] and [TabHeader].
+/// - [onClosed] is called whenever search is dismissed (via back button,
+///   empty clear button tap, etc.) so the parent can update its state.
 class AppSearchBar extends StatefulWidget {
   const AppSearchBar({
     super.key,
+    required this.isOpen,
     required this.hint,
     required this.onChanged,
     required this.onClosed,
+    this.initialQuery,
   });
 
+  final bool isOpen;
   final String hint;
   final ValueChanged<String> onChanged;
   final VoidCallback onClosed;
+  final String? initialQuery;
 
   @override
   AppSearchBarState createState() => AppSearchBarState();
@@ -55,21 +50,37 @@ class AppSearchBar extends StatefulWidget {
 class AppSearchBarState extends State<AppSearchBar> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
-  bool _open = false;
+  bool _shouldAutofocus = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
+    _controller = TextEditingController(text: widget.initialQuery ?? '');
     _focusNode = FocusNode();
+    _shouldAutofocus =
+        widget.isOpen && (widget.initialQuery == null || widget.initialQuery!.isEmpty);
     if (kSearchDebugLog) {
       _focusNode.addListener(_onFocusChange);
     }
-    _log('initState');
+    _log('initState isOpen=${widget.isOpen}');
   }
 
   void _onFocusChange() {
     _log('focus changed → hasFocus=${_focusNode.hasFocus}');
+  }
+
+  @override
+  void didUpdateWidget(AppSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isOpen && widget.isOpen) {
+      _log('didUpdateWidget: opened');
+      _shouldAutofocus = true;
+    } else if (oldWidget.isOpen && !widget.isOpen) {
+      _log('didUpdateWidget: closed');
+      _shouldAutofocus = false;
+      _focusNode.unfocus();
+      _controller.clear();
+    }
   }
 
   @override
@@ -86,47 +97,34 @@ class AppSearchBarState extends State<AppSearchBar> {
   // ----------------------------------------------------------------- public API
 
   /// Whether the search bar is currently visible.
-  bool get isOpen => _open;
-
-  /// Opens the search bar. The field will gain focus through [autofocus: true]
-  /// the first time it is built — no manual [requestFocus] call needed.
-  void open() {
-    if (_open) return;
-    _log('open()');
-    setState(() => _open = true);
-  }
-
-  /// Closes the search bar, clears the text, unfocuses, and fires [onClosed].
-  void close() {
-    if (!_open) return;
-    _log('close()');
-    _focusNode.unfocus();
-    _controller.clear();
-    setState(() => _open = false);
-    widget.onClosed();
-  }
+  bool get isOpen => widget.isOpen;
 
   /// Hides the soft keyboard while keeping the search bar open and the query intact.
-  /// Call this when the user plays a result or the page navigates away.
+  /// Call this when the user plays a result or navigates away.
   void hideKeyboard() {
     _log('hideKeyboard()');
+    _shouldAutofocus = false;
     _focusNode.unfocus();
   }
 
   /// Handles back-button presses for the page's [PopScope.onPopInvokedWithResult].
   ///
   /// - If the keyboard is open: hides it, returns true (consumes the pop).
-  /// - If search is open: closes it, returns true.
+  /// - If search is open: closes it via [onClosed], returns true.
   /// - Otherwise: returns false (let the pop proceed normally).
   bool handlePop() {
     if (_focusNode.hasFocus) {
       _log('handlePop → hide keyboard');
+      _shouldAutofocus = false;
       _focusNode.unfocus();
       return true;
     }
-    if (_open) {
+    if (widget.isOpen) {
       _log('handlePop → close search');
-      close();
+      _shouldAutofocus = false;
+      _focusNode.unfocus();
+      _controller.clear();
+      widget.onClosed();
       return true;
     }
     return false;
@@ -141,14 +139,16 @@ class AppSearchBarState extends State<AppSearchBar> {
 
   void _onSubmitted(String value) {
     _log('onSubmitted: "$value"');
+    _shouldAutofocus = false;
     _focusNode.unfocus();
-    // Do not call onChanged again; the query is already up to date.
   }
 
   void _onClearTapped() {
     if (_controller.text.isEmpty) {
       // Field is already empty: treat the button as a close.
-      close();
+      _shouldAutofocus = false;
+      _focusNode.unfocus();
+      widget.onClosed();
     } else {
       _log('clear text');
       _controller.clear();
@@ -161,18 +161,19 @@ class AppSearchBarState extends State<AppSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    _log('build open=$_open');
+    _log('build isOpen=${widget.isOpen}');
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
       alignment: Alignment.topCenter,
-      child: _open
+      child: widget.isOpen
           ? Padding(
               padding: const EdgeInsets.only(top: AppTheme.space16),
               child: _SearchField(
                 controller: _controller,
                 focusNode: _focusNode,
+                autofocus: _shouldAutofocus,
                 hint: widget.hint,
                 onChanged: _onChanged,
                 onSubmitted: _onSubmitted,
@@ -192,6 +193,7 @@ class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
     required this.focusNode,
+    required this.autofocus,
     required this.hint,
     required this.onChanged,
     required this.onSubmitted,
@@ -200,6 +202,7 @@ class _SearchField extends StatelessWidget {
 
   final TextEditingController controller;
   final FocusNode focusNode;
+  final bool autofocus;
   final String hint;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
@@ -216,9 +219,7 @@ class _SearchField extends StatelessWidget {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
-        // autofocus: true causes the keyboard to open exactly once when the
-        // field is first inserted into the tree. No manual requestFocus needed.
-        autofocus: true,
+        autofocus: autofocus,
         onChanged: onChanged,
         onSubmitted: onSubmitted,
         textInputAction: TextInputAction.search,
