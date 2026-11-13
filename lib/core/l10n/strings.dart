@@ -41,6 +41,8 @@ abstract class Strings {
   String get searchVideos;
   String get search;
   String get closeSearch;
+  String get recentSearches;
+  String get clearAll;
   String get sort;
   String get gridView;
   String get listView;
@@ -340,6 +342,10 @@ class StringsEn extends Strings {
   String get search => 'Search';
   @override
   String get closeSearch => 'Close search';
+  @override
+  String get recentSearches => 'Recent searches';
+  @override
+  String get clearAll => 'Clear all';
   @override
   String get sort => 'Sort';
   @override
@@ -886,6 +892,10 @@ class StringsAr extends Strings {
   String get search => 'بحث';
   @override
   String get closeSearch => 'إغلاق البحث';
+  @override
+  String get recentSearches => 'عمليات البحث الأخيرة';
+  @override
+  String get clearAll => 'مسح الكل';
   @override
   String get sort => 'ترتيب';
   @override

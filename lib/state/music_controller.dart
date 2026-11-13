@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/utils/text_normalizer.dart';
+
 import '../data/local/app_database.dart';
 import '../data/models/song.dart';
 import '../data/models/video.dart';
@@ -132,6 +134,9 @@ class MusicController extends ChangeNotifier {
   List<Artist>? _artists;
   List<MusicFolder>? _folders;
   final Map<String, _SearchResults> _searchCache = {};
+  final Map<String, String> _songNormCache = {};
+  final Map<String, String> _albumNormCache = {};
+  final Map<String, String> _artistNormCache = {};
 
   void _invalidate() {
     _sortedSongs = null;
@@ -139,6 +144,9 @@ class MusicController extends ChangeNotifier {
     _artists = null;
     _folders = null;
     _searchCache.clear();
+    _songNormCache.clear();
+    _albumNormCache.clear();
+    _artistNormCache.clear();
     _favoriteSongs = null;
     _recentSongs = null;
   }
@@ -305,25 +313,50 @@ class MusicController extends ChangeNotifier {
 
   void clearQuery() => setQuery('');
 
+  String _normTargetForSong(Song s) {
+    return _songNormCache.putIfAbsent(s.id, () {
+      final fileName = s.path.split(RegExp(r'[/\\]')).last;
+      return TextNormalizer.normalize('${s.title} ${s.artist} ${s.album} $fileName');
+    });
+  }
+
+  String _normTargetForAlbum(Album a) {
+    return _albumNormCache.putIfAbsent(a.key, () {
+      return TextNormalizer.normalize('${a.name} ${a.artist}');
+    });
+  }
+
+  String _normTargetForArtist(Artist a) {
+    return _artistNormCache.putIfAbsent(a.name, () {
+      return TextNormalizer.normalize(a.name);
+    });
+  }
+
   /// Songs, albums and artists matching the query, in library order.
   ({List<Song> songs, List<Album> albums, List<Artist> artists}) get results {
-    final q = _query.toLowerCase();
-    final cached = _searchCache[q];
+    final normQ = TextNormalizer.normalize(_query);
+    if (normQ.isEmpty) {
+      return (
+        songs: const <Song>[],
+        albums: const <Album>[],
+        artists: const <Artist>[],
+      );
+    }
+    final cached = _searchCache[normQ];
     if (cached != null) return cached.value;
 
-    bool has(String text) => text.toLowerCase().contains(q);
     final value = (
       songs: songs
-          .where((s) => has(s.title) || has(s.artist) || has(s.album))
+          .where((s) => _normTargetForSong(s).contains(normQ))
           .toList(growable: false),
       albums: albums
-          .where((a) => has(a.name) || has(a.artist))
+          .where((a) => _normTargetForAlbum(a).contains(normQ))
           .toList(growable: false),
       artists: artists
-          .where((a) => a.name.isNotEmpty && has(a.name))
+          .where((a) => a.name.isNotEmpty && _normTargetForArtist(a).contains(normQ))
           .toList(growable: false),
     );
-    _searchCache[q] = _SearchResults(value);
+    _searchCache[normQ] = _SearchResults(value);
     return value;
   }
 

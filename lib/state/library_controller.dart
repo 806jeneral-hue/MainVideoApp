@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../core/utils/natural_sort.dart';
+import '../core/utils/text_normalizer.dart';
 import '../data/models/collection_prefs.dart';
 import '../data/models/enums.dart';
 import '../data/models/playlist.dart';
@@ -128,6 +129,7 @@ class LibraryController extends ChangeNotifier {
   List<VideoFolder>? _foldersCache;
   List<VideoFolder>? _allFoldersCache;
   final Map<String, List<Video>> _collectionCache = {};
+  final Map<String, String> _searchNormCache = {};
 
   void _invalidate() {
     _visibleCache = null;
@@ -138,6 +140,7 @@ class LibraryController extends ChangeNotifier {
     _foldersCache = null;
     _allFoldersCache = null;
     _collectionCache.clear();
+    _searchNormCache.clear();
   }
 
   /// Videos left after the scan-folder allow-list and the hidden-folder list.
@@ -1001,16 +1004,21 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
+  String _normTargetForVideo(Video v) {
+    return _searchNormCache.putIfAbsent(v.id, () {
+      final fileName = v.path.split(RegExp(r'[/\\]')).last;
+      return TextNormalizer.normalize('${v.title} $fileName ${v.folderName}');
+    });
+  }
+
+  /// Filters [input] by [query] using normalized matching against video
+  /// title, file name, and folder name.
+  List<Video> filterByQuery(List<Video> input, String query) => _search(input, query);
+
   List<Video> _search(List<Video> input, String query) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return input;
-    return input
-        .where(
-          (v) =>
-              v.title.toLowerCase().contains(q) ||
-              v.folderName.toLowerCase().contains(q),
-        )
-        .toList();
+    final normQ = TextNormalizer.normalize(query);
+    if (normQ.isEmpty) return input;
+    return input.where((v) => _normTargetForVideo(v).contains(normQ)).toList();
   }
 
   List<VideoFolder> _groupFolders(List<Video> input) {

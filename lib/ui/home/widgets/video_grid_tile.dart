@@ -8,6 +8,7 @@ import '../../common/glass.dart';
 import '../../common/mark_ribbon.dart';
 import '../../common/video_thumbnail.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../core/utils/text_normalizer.dart';
 
 /// Grid version of the video card — same white surface, same rounding, same
 /// information as the list tile, just stacked instead of side by side.
@@ -23,6 +24,7 @@ class VideoGridTile extends StatelessWidget {
     this.selectionMode = false,
     this.selected = false,
     this.markedAtMs,
+    this.searchQuery = '',
   });
 
   final Video video;
@@ -33,6 +35,7 @@ class VideoGridTile extends StatelessWidget {
   final bool isPinned;
   final bool selectionMode;
   final bool selected;
+  final String searchQuery;
 
   /// Set on the video marked as where the user stopped in this list.
   final int? markedAtMs;
@@ -107,8 +110,9 @@ class VideoGridTile extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                video.displayName,
+                              HighlightedText(
+                                text: video.displayName,
+                                query: searchQuery,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -126,15 +130,28 @@ class VideoGridTile extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(
-                                    child: Text(
-                                      '${Fmt.fileSize(video.sizeBytes)}  ·  ${video.folderName}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          '${Fmt.fileSize(video.sizeBytes)}  ·  ',
+                                          style: theme.textTheme.bodySmall?.copyWith(
                                             color: muted,
                                             fontWeight: FontWeight.w500,
                                           ),
+                                        ),
+                                        Expanded(
+                                          child: HighlightedText(
+                                            text: video.folderName,
+                                            query: searchQuery,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: muted,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],

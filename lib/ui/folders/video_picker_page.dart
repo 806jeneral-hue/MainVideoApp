@@ -5,6 +5,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/text_normalizer.dart';
 import '../../data/models/collection_prefs.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/song.dart';
@@ -74,22 +75,26 @@ class _VideoPickerPageState extends State<VideoPickerPage>
           .where((v) => v.folderPath == _selectedFolder)
           .toList(growable: false);
     }
-    final q = _query.trim().toLowerCase();
+    final normQ = TextNormalizer.normalize(_query);
     final videos = library.orderVideos(
       CollectionKey.home,
-      q.isEmpty
+      normQ.isEmpty
           ? allVideos
-          : allVideos
-              .where((v) => v.title.toLowerCase().contains(q))
-              .toList(),
+          : allVideos.where((v) {
+              final fileName = v.path.split(RegExp(r'[/\\]')).last;
+              final target =
+                  TextNormalizer.normalize('${v.title} $fileName ${v.folderName}');
+              return target.contains(normQ);
+            }).toList(),
     );
 
-    // Filter songs (matching search query)
+    // Filter songs (matching search query: title, artist, album, file name)
     final songs = [
       for (final song in music.songs)
-        if (q.isEmpty ||
-            song.title.toLowerCase().contains(q) ||
-            song.artist.toLowerCase().contains(q))
+        if (normQ.isEmpty ||
+            TextNormalizer.normalize(
+              '${song.title} ${song.artist} ${song.album} ${song.path.split(RegExp(r"[/\\]")).last}',
+            ).contains(normQ))
           song,
     ];
 

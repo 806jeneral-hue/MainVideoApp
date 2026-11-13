@@ -10,6 +10,7 @@ import '../../common/glass.dart';
 import '../../common/mark_ribbon.dart';
 import '../../common/video_thumbnail.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../core/utils/text_normalizer.dart';
 
 /// One video as a white card floating on the page: thumbnail on the left,
 /// title and metadata beside it, overflow menu on the right.
@@ -33,6 +34,7 @@ class VideoListTile extends StatelessWidget {
     this.compact = false,
     this.extent,
     this.markedAtMs,
+    this.searchQuery = '',
   });
 
   final Video video;
@@ -42,6 +44,7 @@ class VideoListTile extends StatelessWidget {
   final bool isFavorite;
   final bool isPinned;
   final String? subtitleOverride;
+  final String searchQuery;
 
   /// While a multi-select is running, tapping toggles selection instead of
   /// opening the video.
@@ -177,8 +180,9 @@ class VideoListTile extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              video.displayName,
+                            HighlightedText(
+                              text: video.displayName,
+                              query: searchQuery,
                               maxLines: (compact || thumbHeight < 64) ? 1 : 2,
                               overflow: TextOverflow.ellipsis,
                               style:
@@ -194,6 +198,7 @@ class VideoListTile extends StatelessWidget {
                             SizedBox(height: compact ? 3 : AppTheme.space8),
                             _MetaRow(
                               video: video,
+                              searchQuery: searchQuery,
                               muted: muted,
                               accent: accent,
                               isFavorite: isFavorite,
@@ -319,6 +324,7 @@ class _MetaRow extends StatelessWidget {
     required this.isPinned,
     required this.subtitleOverride,
     this.markedAtMs,
+    this.searchQuery = '',
   });
 
   final Video video;
@@ -328,6 +334,7 @@ class _MetaRow extends StatelessWidget {
   final bool isPinned;
   final String? subtitleOverride;
   final int? markedAtMs;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -376,8 +383,9 @@ class _MetaRow extends StatelessWidget {
           _SourceIcon(folder: video.folderName, muted: muted),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(
-              video.folderName,
+            child: HighlightedText(
+              text: video.folderName,
+              query: searchQuery,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: style,

@@ -177,6 +177,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'flutter');
+      // Advance by debounce duration (300 ms)
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
 
       expect(hostState.lastQuery, 'flutter');

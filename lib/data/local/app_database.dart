@@ -134,4 +134,8 @@ class SettingsKeys {
 
   // Files
   static const askedAllFilesAccess = 'askedAllFilesAccess';
+
+  // Search
+  static const recentVideoSearches = 'recentVideoSearches';
+  static const recentMusicSearches = 'recentMusicSearches';
 }

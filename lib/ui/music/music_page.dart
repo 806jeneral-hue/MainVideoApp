@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../core/services/recent_searches_service.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/local/app_database.dart';
 import '../../data/models/song.dart';
 import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
@@ -84,6 +86,7 @@ class _MusicPageState extends State<MusicPage> {
       isOpen: _isSearchOpen,
       hint: s.searchMusic,
       initialQuery: music.query,
+      recentStorageKey: SettingsKeys.recentMusicSearches,
       onChanged: music.setQuery,
       onClosed: () {
         setState(() => _isSearchOpen = false);
@@ -263,6 +266,15 @@ class _MusicPageState extends State<MusicPage> {
       ];
     }
 
+    void saveSearch() {
+      if (music.query.trim().isNotEmpty) {
+        RecentSearchesService.addRecent(
+          SettingsKeys.recentMusicSearches,
+          music.query.trim(),
+        );
+      }
+    }
+
     return [
       if (results.artists.isNotEmpty) ...[
         SliverToBoxAdapter(child: MusicListLabel(text: s.artists)),
@@ -271,6 +283,7 @@ class _MusicPageState extends State<MusicPage> {
           itemBuilder: (context, index) {
             final artist = results.artists[index];
             return MusicCollectionTile(
+              searchQuery: music.query,
               leading: AlbumArt(
                 song: artist.songs.first,
                 size: 52,
@@ -278,7 +291,10 @@ class _MusicPageState extends State<MusicPage> {
               ),
               title: artist.name,
               subtitle: s.songCount(artist.songs.length),
-              onTap: () => _open(SongListPage.artist(artist.name)),
+              onTap: () {
+                saveSearch();
+                _open(SongListPage.artist(artist.name));
+              },
             );
           },
         ),
@@ -290,6 +306,7 @@ class _MusicPageState extends State<MusicPage> {
           itemBuilder: (context, index) {
             final album = results.albums[index];
             return MusicCollectionTile(
+              searchQuery: music.query,
               leading: AlbumArt(
                 song: album.cover,
                 size: 52,
@@ -299,14 +316,22 @@ class _MusicPageState extends State<MusicPage> {
               subtitle: album.artist.isEmpty
                   ? s.songCount(album.songs.length)
                   : album.artist,
-              onTap: () => _open(SongListPage.album(album.key)),
+              onTap: () {
+                saveSearch();
+                _open(SongListPage.album(album.key));
+              },
             );
           },
         ),
       ],
       if (results.songs.isNotEmpty) ...[
         SliverToBoxAdapter(child: MusicListLabel(text: s.songs)),
-        SongSliver(songs: results.songs, title: s.songs),
+        SongSliver(
+          songs: results.songs,
+          title: s.songs,
+          searchQuery: music.query,
+          onSongTapped: saveSearch,
+        ),
       ],
     ];
   }

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../core/services/recent_searches_service.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/local/app_database.dart';
 import '../../data/models/bookmark.dart';
 import '../../data/models/collection_prefs.dart';
 import '../../data/models/enums.dart';
@@ -70,9 +72,8 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
         library.homeVideos.where((v) => v.isArchive).toList(),
     };
     // homeVideos already applies the search; the other two are raw lists.
-    final q = library.query.trim().toLowerCase();
-    if (filter == HomeFilter.all || q.isEmpty) return videos;
-    return videos.where((v) => v.title.toLowerCase().contains(q)).toList();
+    if (filter == HomeFilter.all || library.query.trim().isEmpty) return videos;
+    return library.filterByQuery(videos, library.query);
   }
 
   // ----------------------------------------------------------------- build
@@ -120,6 +121,7 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
       isOpen: _isSearchOpen,
       hint: context.s.searchVideos,
       initialQuery: library.query,
+      recentStorageKey: SettingsKeys.recentVideoSearches,
       onChanged: library.setQuery,
       onClosed: () {
         setState(() => _isSearchOpen = false);
@@ -228,6 +230,7 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                     else
                       VideoSliver(
                         videos: videos,
+                        searchQuery: library.query,
                         viewMode: library.viewMode,
                         marker: context
                             .select<BookmarkController, StopMarker?>(
@@ -266,6 +269,12 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
                           // Hide keyboard before opening player.
                           _searchBar?.hideKeyboard();
                           FocusManager.instance.primaryFocus?.unfocus();
+                          if (library.query.trim().isNotEmpty) {
+                            RecentSearchesService.addRecent(
+                              SettingsKeys.recentVideoSearches,
+                              library.query.trim(),
+                            );
+                          }
                           if (selectionMode) {
                             toggleSelection(video);
                             return;

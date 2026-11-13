@@ -19,9 +19,13 @@ class SongSliver extends StatelessWidget {
     this.playlistId,
     this.numbered = false,
     this.selection,
+    this.searchQuery = '',
+    this.onSongTapped,
   });
 
   final List<Song> songs;
+  final String searchQuery;
+  final VoidCallback? onSongTapped;
 
   /// Shown as where playback came from.
   final String title;
@@ -48,6 +52,7 @@ class SongSliver extends StatelessWidget {
           return EmergeFromBottom(
             child: SongTile(
               song: song,
+              searchQuery: searchQuery,
               isCurrent: song.id == currentId,
               leadingNumber: numbered ? index + 1 : null,
               selectionMode: picking,
@@ -57,7 +62,10 @@ class SongSliver extends StatelessWidget {
                   : () => selection!.toggle(song.id),
               onTap: picking
                   ? () => selection!.toggle(song.id)
-                  : () => playSongs(context, songs, index: index, title: title),
+                  : () {
+                      onSongTapped?.call();
+                      playSongs(context, songs, index: index, title: title);
+                    },
               onMore: () => showSongActions(
                 context,
                 song,

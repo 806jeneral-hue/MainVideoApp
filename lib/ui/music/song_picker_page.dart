@@ -5,6 +5,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/text_normalizer.dart';
 import '../../data/models/song.dart';
 import '../../data/models/video.dart';
 import '../../state/library_controller.dart';
@@ -62,22 +63,26 @@ class _SongPickerPageState extends State<SongPickerPage>
     final music = context.watch<MusicController>();
     final library = context.watch<LibraryController>();
     final s = context.s;
-    final q = _query.trim().toLowerCase();
+    final normQ = TextNormalizer.normalize(_query);
 
     final songs = [
       for (final song in music.songs)
-        if (q.isEmpty ||
-            song.title.toLowerCase().contains(q) ||
-            song.artist.toLowerCase().contains(q))
+        if (normQ.isEmpty ||
+            TextNormalizer.normalize(
+              '${song.title} ${song.artist} ${song.album} ${song.path.split(RegExp(r"[/\\]")).last}',
+            ).contains(normQ))
           song,
     ];
 
     final availableVideos = library.visibleVideos;
-    final videos = q.isEmpty
+    final videos = normQ.isEmpty
         ? availableVideos
-        : availableVideos
-            .where((v) => v.title.toLowerCase().contains(q))
-            .toList();
+        : availableVideos.where((v) {
+            final fileName = v.path.split(RegExp(r'[/\\]')).last;
+            final target =
+                TextNormalizer.normalize('${v.title} $fileName ${v.folderName}');
+            return target.contains(normQ);
+          }).toList();
 
     final currentTabIsSongs = _tabController.index == 0;
     final currentTabSelectableIds = currentTabIsSongs

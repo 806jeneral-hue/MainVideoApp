@@ -28,10 +28,12 @@ class VideoSliver extends StatelessWidget {
     this.selectedIds = const {},
     this.onReorder,
     this.marker,
+    this.searchQuery = '',
   });
 
   final List<Video> videos;
   final ViewMode viewMode;
+  final String searchQuery;
   final void Function(Video video, int index) onTap;
   final void Function(Video video) onMore;
   final double Function(Video video) progressOf;
@@ -95,6 +97,7 @@ class VideoSliver extends StatelessWidget {
                 child: EmergeFromBottom(
                   child: VideoGridTile(
                     video: video,
+                    searchQuery: searchQuery,
                     progress: progressOf(video),
                     isFavorite: isFavorite(video),
                     isPinned: isPinned?.call(video) ?? false,
@@ -173,6 +176,7 @@ class VideoSliver extends StatelessWidget {
       child: EmergeFromBottom(
         child: VideoListTile(
           video: video,
+          searchQuery: searchQuery,
           compact: viewMode == ViewMode.compact,
           extent: extent,
           markedAtMs: _markedAt(video),

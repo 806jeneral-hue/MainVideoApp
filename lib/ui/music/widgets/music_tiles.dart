@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/text_normalizer.dart';
 import '../../../data/models/song.dart';
 import '../../common/glass.dart';
 import 'album_art.dart';
@@ -25,11 +26,13 @@ class SongTile extends StatelessWidget {
     this.selectionMode = false,
     this.selected = false,
     this.onLongPress,
+    this.searchQuery = '',
   });
 
   final Song song;
   final VoidCallback onTap;
   final VoidCallback onMore;
+  final String searchQuery;
 
   /// While songs are being ticked, a tap ticks and the menu steps aside.
   final bool selectionMode;
@@ -117,8 +120,9 @@ class SongTile extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            song.title,
+                          HighlightedText(
+                            text: song.title,
+                            query: searchQuery,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyLarge?.copyWith(
@@ -127,14 +131,29 @@ class SongTile extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 3),
-                          Text(
-                            '$artist  ·  ${Fmt.durationMs(song.durationMs)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: muted,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: HighlightedText(
+                                  text: artist,
+                                  query: searchQuery,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: muted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '  ·  ${Fmt.durationMs(song.durationMs)}',
+                                maxLines: 1,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: muted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -168,10 +187,16 @@ class SongTile extends StatelessWidget {
 
 /// An album in a grid: its cover large, the name and the artist under it.
 class AlbumCard extends StatelessWidget {
-  const AlbumCard({super.key, required this.album, required this.onTap});
+  const AlbumCard({
+    super.key,
+    required this.album,
+    required this.onTap,
+    this.searchQuery = '',
+  });
 
   final Album album;
   final VoidCallback onTap;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -199,8 +224,9 @@ class AlbumCard extends StatelessWidget {
                 const SizedBox(height: AppTheme.space8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    album.name.isEmpty ? s.unknownAlbum : album.name,
+                  child: HighlightedText(
+                    text: album.name.isEmpty ? s.unknownAlbum : album.name,
+                    query: searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -210,10 +236,11 @@ class AlbumCard extends StatelessWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    album.artist.isEmpty
+                  child: HighlightedText(
+                    text: album.artist.isEmpty
                         ? s.songCount(album.songs.length)
                         : album.artist,
+                    query: searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -240,6 +267,7 @@ class MusicCollectionTile extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.onMore,
+    this.searchQuery = '',
   });
 
   final Widget leading;
@@ -247,6 +275,7 @@ class MusicCollectionTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final VoidCallback? onMore;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -283,8 +312,9 @@ class MusicCollectionTile extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
+                        HighlightedText(
+                          text: title,
+                          query: searchQuery,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyLarge?.copyWith(
@@ -292,8 +322,9 @@ class MusicCollectionTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 3),
-                        Text(
-                          subtitle,
+                        HighlightedText(
+                          text: subtitle,
+                          query: searchQuery,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
