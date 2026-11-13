@@ -6,8 +6,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/collection_prefs.dart';
 import '../../data/models/enums.dart';
+import '../../data/models/playlist.dart';
 import '../../data/models/video.dart';
+import '../../data/services/archive_playback_service.dart';
 import '../../state/library_controller.dart';
+import '../../state/music_controller.dart';
 import '../../state/settings_controller.dart';
 import '../common/glass.dart';
 import '../common/empty_state.dart';
@@ -66,9 +69,34 @@ class _CollectionPageState extends State<CollectionPage>
   final ScrollController _ownScrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.kind == CollectionKind.playlist) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<MusicController>().ensureLoaded();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _ownScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openPicker(BuildContext context, Playlist playlist) async {
+    final library = context.read<LibraryController>();
+    final picked = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => VideoPickerPage(
+          title: context.s.addToPlaylistTitle(playlist.name),
+          excluded: playlist.videoIds.toSet(),
+        ),
+      ),
+    );
+    if (picked != null && picked.isNotEmpty && context.mounted) {
+      await library.addToPlaylist(playlist.id, picked);
+    }
   }
 
   CollectionKey get _key => switch (widget.kind) {
@@ -81,6 +109,9 @@ class _CollectionPageState extends State<CollectionPage>
   Widget build(BuildContext context) {
     final library = context.watch<LibraryController>();
     final settings = context.watch<SettingsController>();
+    if (widget.kind == CollectionKind.playlist) {
+      context.watch<MusicController>();
+    }
 
     final playlist = widget.playlistId == null
         ? null
@@ -109,7 +140,15 @@ class _CollectionPageState extends State<CollectionPage>
     // tab scrolls to top; pushed as a route it uses its own.
     final scrollController = TabScroll.maybeOf(context) ?? _ownScrollController;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !selectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (selectionMode) {
+          clearSelection();
+        }
+      },
+      child: Scaffold(
       // The list runs on behind the mini player and fades out above it, the
       // same as on the main tabs.
       extendBody: true,
@@ -117,8 +156,12 @@ class _CollectionPageState extends State<CollectionPage>
           ? buildSelectionAppBar(
               context: context,
               count: selectedIds.length,
+              total: videos.length,
               onClose: clearSelection,
               onSelectAll: () => selectAll(videos),
+              onDeselectAll: deselectAll,
+              onToggleViewMode: library.toggleViewMode,
+              currentViewMode: library.viewMode,
             )
           : AppBar(
               // As the Favorites tab it carries the settings gear like the
@@ -133,24 +176,10 @@ class _CollectionPageState extends State<CollectionPage>
               actions: [
                 if (widget.kind == CollectionKind.playlist && playlist != null)
                   HeaderAction(
-                    tooltip: context.s.addVideos,
+                    tooltip: context.s.addMedia,
+                    highlighted: true,
                     icon: const Icon(AppIcons.playlist_add_rounded),
-                    onPressed: () async {
-                      final picked = await Navigator.of(context)
-                          .push<List<String>>(
-                            MaterialPageRoute(
-                              builder: (_) => VideoPickerPage(
-                                title: context.s.addToPlaylistTitle(
-                                  playlist.name,
-                                ),
-                                excluded: playlist.videoIds.toSet(),
-                              ),
-                            ),
-                          );
-                      if (picked != null && picked.isNotEmpty) {
-                        await library.addToPlaylist(playlist.id, picked);
-                      }
-                    },
+                    onPressed: () => _openPicker(context, playlist),
                   ),
                 HeaderAction(
                   tooltip: switch (library.nextViewMode) {
@@ -190,17 +219,29 @@ class _CollectionPageState extends State<CollectionPage>
                     child: MiniPlayer(aboveNavigation: false),
                   )),
       body: videos.isEmpty
-          ? _empty(context, widget.kind)
+          ? _empty(context, widget.kind, playlist)
           : DragSelectArea(
               controller: scrollController,
               armed: dragArmed,
-              onHover: addToSelection,
+              selectionMode: selectionMode,
+              onLongPressStart: (id, index) {
+                if (index >= 0 && index < videos.length) {
+                  startSelection(videos[index], index, videos);
+                }
+              },
+              onHover: (id, index) {
+                final width = MediaQuery.sizeOf(context).width;
+                final gridCols = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+                final cols = library.viewMode == ViewMode.grid ? gridCols : 1;
+                addToSelection(id, index, videos, cols);
+              },
               onEnd: endDragSelection,
               child: BottomFade(
                 child: FastScroller(
                   controller: scrollController,
                   bottomPadding: listBottomInset(context, extra: 0),
                   child: CustomScrollView(
+                    key: PageStorageKey('collection_${widget.kind}_${widget.folderPath ?? widget.playlistId ?? "favorites"}'),
                     controller: scrollController,
                     slivers: [
                       SliverToBoxAdapter(
@@ -283,10 +324,22 @@ class _CollectionPageState extends State<CollectionPage>
                             toggleSelection(video);
                             return;
                           }
+                          if (video.isArchive) {
+                            ArchivePlaybackService.openArchiveAndPlay(
+                              context,
+                              video.path,
+                            );
+                            return;
+                          }
+                          final nonArchiveVideos =
+                              videos.where((v) => !v.isArchive).toList();
                           openPlayer(
                             context,
-                            queue: videos,
-                            startIndex: index,
+                            queue: nonArchiveVideos,
+                            startIndex: nonArchiveVideos.indexOf(video).clamp(
+                              0,
+                              nonArchiveVideos.length - 1,
+                            ),
                             queueTitle: title,
                             collection: _key,
                           );
@@ -296,17 +349,31 @@ class _CollectionPageState extends State<CollectionPage>
                             toggleSelection(video);
                             return;
                           }
+                          // Archive files: show actions sheet (not play directly).
                           showVideoActions(
                             context,
                             video,
-                            onPlay: () => openPlayer(
-                              context,
-                              queue: videos,
-                              startIndex: videos.indexOf(video),
-                              queueTitle: title,
-                              collection: _key,
+                            onPlay: () {
+                              if (video.isArchive) {
+                                ArchivePlaybackService.openArchiveAndPlay(
+                                  context,
+                                  video.path,
+                                );
+                              } else {
+                                openPlayer(
+                                  context,
+                                  queue: videos.where((v) => !v.isArchive).toList(),
+                                  startIndex: videos.where((v) => !v.isArchive).toList().indexOf(video),
+                                  queueTitle: title,
+                                  collection: _key,
+                                );
+                              }
+                            },
+                            onSelect: () => startSelection(
+                              video,
+                              videos.indexOf(video),
+                              videos,
                             ),
-                            onSelect: () => startSelection(video),
                             collection: _key,
                             onRemoveFromPlaylist:
                                 widget.kind == CollectionKind.playlist &&
@@ -324,8 +391,10 @@ class _CollectionPageState extends State<CollectionPage>
                 ),
               ),
             ),
-    );
+          ),
+        );
   }
+
 
   void _playAll(
     BuildContext context,
@@ -343,7 +412,7 @@ class _CollectionPageState extends State<CollectionPage>
     );
   }
 
-  Widget _empty(BuildContext context, CollectionKind kind) {
+  Widget _empty(BuildContext context, CollectionKind kind, [Playlist? playlist]) {
     final s = context.s;
     return switch (kind) {
       CollectionKind.favorites => EmptyState(
@@ -355,6 +424,16 @@ class _CollectionPageState extends State<CollectionPage>
         icon: AppIcons.queue_music_rounded,
         title: s.emptyPlaylist,
         message: s.emptyPlaylistBody,
+        action: playlist == null
+            ? null
+            : TextButton.icon(
+                onPressed: () => _openPicker(context, playlist),
+                icon: const Icon(AppIcons.playlist_add_rounded),
+                label: Text(s.addMedia),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.accent,
+                ),
+              ),
       ),
       CollectionKind.folder => EmptyState(
         icon: AppIcons.folder_off_outlined,

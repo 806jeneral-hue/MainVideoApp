@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:main_video/core/l10n/app_localizations.dart';
-import 'package:main_video/data/models/playable.dart';
 import 'package:main_video/data/models/song.dart';
 
 Map<String, Object?> songMap({

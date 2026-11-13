@@ -91,6 +91,7 @@ class VideoSliver extends StatelessWidget {
               return DragSelectable(
                 key: ValueKey(video.id),
                 id: video.id,
+                index: index,
                 child: EmergeFromBottom(
                   child: VideoGridTile(
                     video: video,
@@ -117,48 +118,48 @@ class VideoSliver extends StatelessWidget {
     // A screenful holds a whole number of videos: the rows share out the room
     // left between whatever sits above the list and the floating bars, so no
     // half a row is ever parked at the bottom.
+    //
+    // Uses viewPaddingOf (not paddingOf) for the top inset so the extent stays
+    // 100% constant before, during, and after multi-select mode: Scaffold adds
+    // kToolbarHeight to paddingOf when an AppBar is present, which would cause
+    // the item height to change whenever selection mode (which uses an AppBar)
+    // is toggled. viewPaddingOf always reflects the real device safe-area inset.
     final perScreen = viewMode == ViewMode.compact ? 9 : 5;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final topInset = MediaQuery.viewPaddingOf(context).top + 56.0;
+    final bottomInset = steadyBottomInset(context);
+    final room = screenHeight - topInset - bottomInset - 4.0;
+    final extent = (room / perScreen).clamp(
+      viewMode == ViewMode.compact ? 52.0 : 88.0,
+      viewMode == ViewMode.compact ? 96.0 : 168.0,
+    );
 
-    return SliverLayoutBuilder(
-      builder: (context, constraints) {
-        final room =
-            constraints.viewportMainAxisExtent -
-            constraints.precedingScrollExtent -
-            steadyBottomInset(context) -
-            2;
-        final extent = (room / perScreen).clamp(
-          viewMode == ViewMode.compact ? 52.0 : 88.0,
-          viewMode == ViewMode.compact ? 96.0 : 168.0,
-        );
+    if (_reorderable) {
+      return SliverPadding(
+        padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
+        sliver: SliverReorderableList(
+          itemCount: videos.length,
+          itemExtent: extent,
+          // onReorderItem hands over an index already adjusted for the
+          // removal, so the caller can insert at it directly.
+          onReorderItem: onReorder!,
+          itemBuilder: (context, index) =>
+              _listTile(index, extent: extent, draggable: true),
+        ),
+      );
+    }
 
-        if (_reorderable) {
-          return SliverPadding(
-            padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
-            sliver: SliverReorderableList(
-              itemCount: videos.length,
-              itemExtent: extent,
-              // onReorderItem hands over an index already adjusted for the
-              // removal, so the caller can insert at it directly.
-              onReorderItem: onReorder!,
-              itemBuilder: (context, index) =>
-                  _listTile(index, extent: extent, draggable: true),
-            ),
-          );
-        }
-
-        return SliverPadding(
-          padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
-          sliver: SliverFixedExtentList(
-            itemExtent: extent,
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => _listTile(index, extent: extent),
-              childCount: videos.length,
-              addAutomaticKeepAlives: false,
-              addRepaintBoundaries: false,
-            ),
-          ),
-        );
-      },
+    return SliverPadding(
+      padding: EdgeInsets.only(top: 2, bottom: listBottomInset(context)),
+      sliver: SliverFixedExtentList(
+        itemExtent: extent,
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _listTile(index, extent: extent),
+          childCount: videos.length,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: false,
+        ),
+      ),
     );
   }
 
@@ -168,6 +169,7 @@ class VideoSliver extends StatelessWidget {
     return DragSelectable(
       key: ValueKey(video.id),
       id: video.id,
+      index: index,
       child: EmergeFromBottom(
         child: VideoListTile(
           video: video,

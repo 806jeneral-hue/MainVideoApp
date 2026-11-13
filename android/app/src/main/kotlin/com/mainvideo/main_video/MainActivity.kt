@@ -11,8 +11,14 @@ import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.MediaScannerConnection
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Rational
+import android.net.Uri
+import android.os.Bundle
+import android.provider.OpenableColumns
+import java.io.File
+import java.io.FileOutputStream
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -32,6 +38,9 @@ class MainActivity : FlutterActivity() {
     private val playbackChannelName = "main_video/playback"
     private var playbackChannel: MethodChannel? = null
 
+    private var externalMediaChannel: MethodChannel? = null
+    private var pendingMediaPath: String? = null
+
     private var musicLibrary: MusicLibrary? = null
     private var mediaIndexChannel: MethodChannel? = null
     private var videoScrubbing: VideoScrubbing? = null
@@ -43,6 +52,84 @@ class MainActivity : FlutterActivity() {
                 playbackChannel?.invokeMethod("playbackAction", "pause")
             }
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingMediaPath = resolveIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val path = resolveIntent(intent)
+        if (path != null) {
+            pendingMediaPath = path
+            externalMediaChannel?.invokeMethod("onOpenMedia", path)
+        }
+    }
+
+    private fun resolveIntent(intent: Intent?): String? {
+        if (intent == null) return null
+        val uri: Uri = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                }
+            }
+            else -> intent.data
+        } ?: return null
+
+        return resolveUriToPath(uri)
+    }
+
+    private fun resolveUriToPath(uri: Uri?): String? {
+        if (uri == null) return null
+        if (uri.scheme == "file") {
+            return uri.path
+        }
+        if (uri.scheme == "content") {
+            var displayName: String? = null
+            try {
+                contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        displayName = cursor.getString(nameIndex)
+                    }
+                }
+            } catch (e: Exception) {
+            }
+
+            if (displayName.isNullOrEmpty()) {
+                val lastSeg = uri.lastPathSegment
+                displayName = if (!lastSeg.isNullOrEmpty() && (lastSeg.contains(".") || lastSeg.length < 50)) {
+                    lastSeg.substringAfterLast("/")
+                } else {
+                    "media_${System.currentTimeMillis()}.mp4"
+                }
+            }
+
+            try {
+                val extDir = File(cacheDir, "external_media")
+                if (!extDir.exists()) extDir.mkdirs()
+                val targetFile = File(extDir, displayName!!)
+                contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    return targetFile.absolutePath
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return uri.path ?: uri.toString()
     }
 
     /**
@@ -143,6 +230,149 @@ class MainActivity : FlutterActivity() {
                         runOnUiThread { result.success(dates) }
                     }.start()
 
+                    "scanArchives" -> Thread {
+                        val archives = ArrayList<Map<String, Any?>>()
+                        val scannedPaths = HashSet<String>()
+                        val archiveExts = setOf("zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "iso")
+
+                        fun addArchiveItem(file: File) {
+                            try {
+                                if (file.exists() && file.isFile && file.length() > 0) {
+                                    val canonical = file.canonicalPath
+                                    if (scannedPaths.add(canonical)) {
+                                        val item = HashMap<String, Any?>()
+                                        item["path"] = canonical
+                                        item["title"] = file.name
+                                        item["size"] = file.length()
+                                        item["dateAdded"] = file.lastModified() / 1000
+                                        item["dateModified"] = file.lastModified() / 1000
+                                        archives.add(item)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                            }
+                        }
+
+                        // 1. Query MediaStore.Files with DISPLAY_NAME & MIME_TYPE
+                        try {
+                            val projection = arrayOf(
+                                MediaStore.Files.FileColumns._ID,
+                                MediaStore.Files.FileColumns.DATA,
+                                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                                MediaStore.Files.FileColumns.SIZE,
+                                MediaStore.Files.FileColumns.DATE_ADDED,
+                                MediaStore.Files.FileColumns.DATE_MODIFIED
+                            )
+                            val whereClauses = archiveExts.map { "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.$it'" } +
+                                    listOf(
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/zip'",
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/x-zip-compressed'",
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/x-rar-compressed'",
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/x-7z-compressed'",
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/x-tar'",
+                                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/gzip'"
+                                    )
+                            val selection = whereClauses.joinToString(" OR ")
+
+                            applicationContext.contentResolver.query(
+                                MediaStore.Files.getContentUri("external"),
+                                projection,
+                                selection,
+                                null,
+                                "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
+                            )?.use { cursor ->
+                                val dataCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                                val nameCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                                val sizeCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
+                                val addedCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_ADDED)
+                                val modCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
+
+                                while (cursor.moveToNext()) {
+                                    val path = if (dataCol != -1) cursor.getString(dataCol) else null
+                                    val title = if (nameCol != -1) cursor.getString(nameCol) else null
+                                    if (!path.isNullOrEmpty()) {
+                                        val f = File(path)
+                                        if (f.exists()) {
+                                            addArchiveItem(f)
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                        }
+
+                        // 2. Query MediaStore.Downloads (Android 10+)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            try {
+                                val proj = arrayOf(
+                                    MediaStore.Downloads._ID,
+                                    MediaStore.Downloads.DATA,
+                                    MediaStore.Downloads.DISPLAY_NAME,
+                                    MediaStore.Downloads.SIZE,
+                                    MediaStore.Downloads.DATE_ADDED,
+                                    MediaStore.Downloads.DATE_MODIFIED
+                                )
+                                applicationContext.contentResolver.query(
+                                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                    proj,
+                                    null,
+                                    null,
+                                    "${MediaStore.Downloads.DATE_ADDED} DESC"
+                                )?.use { cursor ->
+                                    val dataCol = cursor.getColumnIndex(MediaStore.Downloads.DATA)
+                                    val nameCol = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
+                                    while (cursor.moveToNext()) {
+                                        val name = if (nameCol != -1) cursor.getString(nameCol) ?: "" else ""
+                                        val path = if (dataCol != -1) cursor.getString(dataCol) else null
+                                        val ext = name.substringAfterLast(".", "").lowercase()
+                                        if (archiveExts.contains(ext)) {
+                                            if (!path.isNullOrEmpty()) {
+                                                val f = File(path)
+                                                if (f.exists()) {
+                                                    addArchiveItem(f)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                            }
+                        }
+
+                        // 3. Deep Recursive Filesystem Walk across External Storage
+                        try {
+                            fun walkDir(dir: File, depth: Int) {
+                                if (depth > 6) return
+                                val files = dir.listFiles() ?: return
+                                for (file in files) {
+                                    try {
+                                        if (file.isDirectory) {
+                                            val name = file.name
+                                            if (name.startsWith(".") || name.equals("Android", ignoreCase = true)) {
+                                                continue
+                                            }
+                                            walkDir(file, depth + 1)
+                                        } else if (file.isFile) {
+                                            val ext = file.name.substringAfterLast(".", "").lowercase()
+                                            if (archiveExts.contains(ext)) {
+                                                addArchiveItem(file)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                    }
+                                }
+                            }
+
+                            val storageRoot = Environment.getExternalStorageDirectory()
+                            if (storageRoot != null && storageRoot.exists()) {
+                                walkDir(storageRoot, 0)
+                            }
+                        } catch (e: Exception) {
+                        }
+
+                        runOnUiThread { result.success(archives) }
+                    }.start()
+
                     else -> result.notImplemented()
                 }
             }
@@ -176,6 +406,22 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
 
+                    else -> result.notImplemented()
+                }
+            }
+        }
+
+        externalMediaChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "main_video/external_media"
+        ).also { ch ->
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInitialMedia" -> {
+                        val path = pendingMediaPath
+                        pendingMediaPath = null
+                        result.success(path)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -278,6 +524,8 @@ class MainActivity : FlutterActivity() {
         channel = null
         playbackChannel?.setMethodCallHandler(null)
         playbackChannel = null
+        externalMediaChannel?.setMethodCallHandler(null)
+        externalMediaChannel = null
         PlaybackService.onAction = null
         musicLibrary?.dispose()
         mediaIndexChannel?.setMethodCallHandler(null)

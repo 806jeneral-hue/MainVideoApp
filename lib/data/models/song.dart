@@ -1,6 +1,8 @@
 import 'dart:io';
 
-import 'playable.dart';
+import 'video.dart';
+
+export 'playable.dart';
 
 /// One song, as MediaStore describes it.
 ///
@@ -20,6 +22,44 @@ class Song implements Playable {
     required this.track,
     required this.year,
   });
+
+  factory Song.fromVideo(Video video) => Song(
+    id: video.id,
+    mediaId: int.tryParse(video.assetId) ?? 0,
+    title: video.title.isNotEmpty ? video.title : video.displayName,
+    artist: video.folderName,
+    album: 'Videos',
+    albumId: 0,
+    durationMs: video.durationMs,
+    sizeBytes: video.sizeBytes,
+    dateAdded: video.dateAdded,
+    track: 0,
+    year: video.dateAdded.year,
+  );
+
+  factory Song.fromPath(String path, {String? title, int? sizeBytes}) {
+    final file = File(path);
+    final fileName =
+        title ??
+        (path.split(Platform.pathSeparator).isNotEmpty
+            ? path.split(Platform.pathSeparator).last
+            : path);
+    final length = sizeBytes ?? (file.existsSync() ? file.lengthSync() : 0);
+    final now = DateTime.now();
+    return Song(
+      id: path,
+      mediaId: 0,
+      title: fileName,
+      artist: 'Audio',
+      album: 'Files',
+      albumId: 0,
+      durationMs: 0,
+      sizeBytes: length,
+      dateAdded: now,
+      track: 0,
+      year: now.year,
+    );
+  }
 
   @override
   final String id;

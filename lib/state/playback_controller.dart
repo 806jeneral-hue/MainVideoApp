@@ -15,7 +15,6 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../core/utils/formatters.dart';
 import '../data/models/collection_prefs.dart';
 import '../data/models/enums.dart';
-import '../data/models/playable.dart';
 import '../data/models/song.dart';
 import '../data/models/video.dart';
 import '../data/services/album_art_service.dart';
@@ -152,7 +151,6 @@ class PlaybackController extends ChangeNotifier {
 
   double _volume = 0.5;
   double _brightness = 0.5;
-  bool _brightnessTouched = false;
 
   bool _isPip = false;
   bool _pipRequested = false;
@@ -270,6 +268,9 @@ class PlaybackController extends ChangeNotifier {
     _isPip = false;
     _pipRequested = false;
     clearAb();
+    try {
+      VolumeController.instance.showSystemUI = true;
+    } catch (_) {}
     await _restoreBrightness();
     await WakelockPlus.disable();
     await BackgroundAudioService.stop();
@@ -333,10 +334,11 @@ class PlaybackController extends ChangeNotifier {
 
   Future<Uint8List?> _artworkFor(Playable item) => switch (item) {
     Song() => AlbumArtService.load(item, size: 512),
-    Video(:final assetId) => ThumbnailService.load(
+    Video(:final assetId, :final durationMs) => ThumbnailService.load(
       assetId,
       width: 512,
       height: 288,
+      durationMs: durationMs,
     ),
     _ => Future.value(null),
   };
@@ -530,6 +532,9 @@ class PlaybackController extends ChangeNotifier {
   void enterFullscreen() {
     dismissDrag.value = 0;
     _closingFullscreen = false;
+    try {
+      VolumeController.instance.showSystemUI = false;
+    } catch (_) {}
     if (_fullscreen) return;
     _fullscreen = true;
     _showControlsBriefly();
@@ -544,6 +549,9 @@ class PlaybackController extends ChangeNotifier {
     _locked = false;
     dismissDrag.value = 0;
     morph.value = 0;
+    try {
+      VolumeController.instance.showSystemUI = true;
+    } catch (_) {}
     await _restoreBrightness();
     notifyListeners();
     if (_historyChangedUnseen) {
@@ -553,18 +561,51 @@ class PlaybackController extends ChangeNotifier {
   }
 
   // -------------------------------------------------------------------- setup
+  bool _listeningToVolume = false;
+  // True while initSystemLevels is reading the initial values so the listener
+  // callback doesn't flash the HUD before the user has touched anything.
+  bool _initializingLevels = false;
+
+  void _initSystemListeners() {
+    if (_listeningToVolume) return;
+    _listeningToVolume = true;
+    try {
+      VolumeController.instance.showSystemUI = false;
+      VolumeController.instance.addListener((volume) {
+        _volume = volume;
+        if (_fullscreen && !_initializingLevels) {
+          _flashHud(HudKind.volume, _volume, '${(_volume * 100).round()}%');
+        }
+        notifyListeners();
+      });
+    } catch (_) {}
+  }
+
   Future<void> initSystemLevels() async {
+    _initializingLevels = true;
+    _initSystemListeners();
+
     try {
       VolumeController.instance.showSystemUI = false;
       _volume = await VolumeController.instance.getVolume();
     } catch (_) {
       _volume = 0.5;
     }
+
     try {
-      _brightness = await ScreenBrightness.instance.application;
+      await ScreenBrightness.instance.resetApplicationScreenBrightness();
+    } catch (_) {}
+
+    try {
+      _brightness = await ScreenBrightness.instance.system;
     } catch (_) {
-      _brightness = 0.5;
+      try {
+        _brightness = await ScreenBrightness.instance.application;
+      } catch (_) {
+        _brightness = 0.5;
+      }
     }
+    _initializingLevels = false;
     notifyListeners();
   }
 
@@ -834,6 +875,86 @@ class PlaybackController extends ChangeNotifier {
   Future<void> playAt(int queueIndex) async {
     if (queueIndex < 0 || queueIndex >= _queue.length) return;
     await _load(queueIndex);
+  }
+
+  /// Removes the currently playing item from the queue and advances to the
+  /// next video. Returns true if another item was loaded, false if the queue
+  /// became empty and playback stopped.
+  Future<bool> removeCurrentAndAdvance() async {
+    if (_queue.isEmpty || _queue.length <= 1) {
+      await stop();
+      return false;
+    }
+
+    final targetIndex = _index;
+    var orderPos = _order.indexOf(targetIndex);
+    if (orderPos < 0) {
+      _buildOrder();
+      orderPos = _order.indexOf(targetIndex);
+    }
+
+    int nextOriginalIndex;
+    if (orderPos >= 0 && orderPos < _order.length - 1) {
+      nextOriginalIndex = _order[orderPos + 1];
+    } else if (orderPos > 0) {
+      nextOriginalIndex = _order[orderPos - 1];
+    } else {
+      nextOriginalIndex = _order.firstWhere(
+        (i) => i != targetIndex,
+        orElse: () => 0,
+      );
+    }
+
+    final newIndex = nextOriginalIndex > targetIndex
+        ? nextOriginalIndex - 1
+        : nextOriginalIndex;
+
+    final newQueue = List<Playable>.from(_queue)..removeAt(targetIndex);
+
+    final newOrder = <int>[];
+    for (final i in _order) {
+      if (i == targetIndex) continue;
+      newOrder.add(i > targetIndex ? i - 1 : i);
+    }
+
+    _queue = newQueue;
+    _order = newOrder;
+
+    _saveTimer?.cancel();
+    final old = _vp;
+    _vp = null;
+    old?.removeListener(_onPlayerTick);
+    await old?.dispose();
+
+    await _load(newIndex);
+    return true;
+  }
+
+  /// Removes an item by ID from the queue. If it is currently playing,
+  /// it advances to the next video. Returns true if session remains active,
+  /// or false if the session stopped.
+  Future<bool> removePlayable(String id) async {
+    if (!hasSession) return false;
+    if (currentOrNull?.id == id) {
+      return removeCurrentAndAdvance();
+    }
+    final targetIndex = _queue.indexWhere((p) => p.id == id);
+    if (targetIndex < 0) return true;
+
+    final newQueue = List<Playable>.from(_queue)..removeAt(targetIndex);
+    final newOrder = <int>[];
+    for (final i in _order) {
+      if (i == targetIndex) continue;
+      newOrder.add(i > targetIndex ? i - 1 : i);
+    }
+
+    if (_index > targetIndex) {
+      _index--;
+    }
+    _queue = newQueue;
+    _order = newOrder;
+    notifyListeners();
+    return true;
   }
 
   /// Puts [items] straight after what is playing, in their order, even with
@@ -1178,7 +1299,6 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> setBrightness(double value) async {
     _brightness = value.clamp(0.0, 1.0);
-    _brightnessTouched = true;
     try {
       await ScreenBrightness.instance.setApplicationScreenBrightness(
         _brightness,
@@ -1263,8 +1383,6 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> _restoreBrightness() async {
-    if (!_brightnessTouched) return;
-    _brightnessTouched = false;
     try {
       await ScreenBrightness.instance.resetApplicationScreenBrightness();
     } catch (_) {

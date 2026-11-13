@@ -5,7 +5,6 @@ import 'package:video_player/video_player.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/haptics.dart';
-import '../../data/models/playable.dart';
 import '../../data/models/song.dart';
 import '../../data/models/video.dart';
 import '../../state/playback_controller.dart';

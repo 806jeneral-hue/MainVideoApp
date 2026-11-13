@@ -48,7 +48,6 @@ class VideoGridTile extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          onLongPress: onMore,
           borderRadius: AppTheme.cardRadius,
           child: Padding(
             padding: const EdgeInsets.all(8),

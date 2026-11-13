@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_icons.dart';
+import '../../data/local/app_database.dart';
+import '../../data/models/song.dart';
+import '../../data/models/video.dart';
+import '../../data/services/archive_playback_service.dart';
+import '../../data/services/external_media_service.dart';
 import '../../data/services/pip_service.dart';
 import '../../state/library_controller.dart';
 import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
+import '../common/glass_snack_bar.dart';
+import '../common/play_menus.dart';
+import '../common/tab_scroll.dart';
 import '../favorites/favorites_page.dart';
 import '../folders/folders_page.dart';
 import '../home/home_page.dart';
 import '../music/music_page.dart';
-import '../common/tab_scroll.dart';
+import '../music/now_playing_page.dart';
 import '../player/mini_player.dart';
+import '../player/player_page.dart';
 import 'app_bottom_nav.dart';
 import 'nav_glyphs.dart';
-import '../common/play_menus.dart';
-import '../../data/local/app_database.dart';
-import '../common/glass_snack_bar.dart';
-import '../../core/theme/app_icons.dart';
 
 /// Bottom navigation: Home / Folders / Favorites / Music, with the mini player
 /// docked above it. Settings open from the gear in each tab's header.
@@ -34,6 +40,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
+  final ValueNotifier<Widget?> _selectionBarNotifier = ValueNotifier<Widget?>(null);
 
   /// A tab is built the first time it is opened and kept alive afterwards, so
   /// startup only pays for Home instead of filtering and sorting the library
@@ -71,11 +78,51 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _handleExternalMedia(String path) async {
+    if (!mounted || path.isEmpty) return;
+
+    if (ArchivePlaybackService.isArchive(path)) {
+      await ArchivePlaybackService.openArchiveAndPlay(context, path);
+    } else {
+      final isAud = ArchivePlaybackService.isAudio(path);
+      if (isAud) {
+        final item = Song.fromPath(path);
+        final playback = context.read<PlaybackController>();
+        await playback.open(
+          queue: [item],
+          startIndex: 0,
+          queueTitle: item.displayName,
+        );
+        if (mounted) openNowPlaying(context);
+      } else {
+        final item = Video.fromPath(path);
+        await openPlayer(
+          context,
+          queue: [item],
+          startIndex: 0,
+          queueTitle: item.displayName,
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tipOnce());
+
+    ExternalMediaService.ensureWired();
+    ExternalMediaService.onExternalMediaReceived = (path) {
+      if (mounted) _handleExternalMedia(path);
+    };
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _tipOnce();
+      final initial = await ExternalMediaService.getInitialMedia();
+      if (initial != null && mounted) {
+        _handleExternalMedia(initial);
+      }
+    });
 
     PipService.ensureWired();
     // Notification buttons and audio focus reach playback through here.
@@ -97,8 +144,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ExternalMediaService.onExternalMediaReceived = null;
     PipService.onPipChanged = null;
     PipService.onUserLeaveHint = null;
+    _selectionBarNotifier.dispose();
     for (final controller in _scrollControllers) {
       controller.dispose();
     }
@@ -111,6 +160,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       scrollToTop(_scrollControllers[value]);
       return;
     }
+    _selectionBarNotifier.value = null;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _index = value;
       _visited.add(value);
@@ -144,15 +195,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         // Lists run the full height of the screen and pass behind the floating
         // bar, fading out as they reach it, instead of stopping above it.
         extendBody: true,
-        body: IndexedStack(
-          index: _index,
-          children: [
-            for (var i = 0; i < _pages.length; i++)
-              if (_visited.contains(i))
-                TabScroll(controller: _scrollControllers[i], child: _pages[i])
-              else
-                const SizedBox.shrink(),
-          ],
+        body: TabSelectionBridge(
+          selectionBarNotifier: _selectionBarNotifier,
+          child: IndexedStack(
+            index: _index,
+            children: [
+              for (var i = 0; i < _pages.length; i++)
+                if (_visited.contains(i))
+                  TabScroll(controller: _scrollControllers[i], child: _pages[i])
+                else
+                  const SizedBox.shrink(),
+            ],
+          ),
         ),
         bottomNavigationBar: SafeArea(
           top: false,
@@ -160,30 +214,43 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             children: [
               const MiniPlayer(),
-              AppBottomNav(
-                currentIndex: _index,
-                onSelected: _onTabSelected,
-                items: [
-                  NavItem(
-                    glyph: NavGlyphKind.home,
-                    label: context.s.navHome,
-                    onLongPress: (anchor) => showHomeQuickMenu(context, anchor),
-                  ),
-                  NavItem(
-                    glyph: NavGlyphKind.folder,
-                    label: context.s.navFolders,
-                  ),
-                  NavItem(
-                    glyph: NavGlyphKind.heart,
-                    label: context.s.navFavorites,
-                  ),
-                  NavItem(
-                    glyph: NavGlyphKind.music,
-                    label: context.s.navMusic,
-                    onLongPress: (anchor) =>
-                        showMusicQuickMenu(context, anchor),
-                  ),
-                ],
+              ValueListenableBuilder<Widget?>(
+                valueListenable: _selectionBarNotifier,
+                builder: (context, selectionBar, _) {
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    child: selectionBar ??
+                        AppBottomNav(
+                          key: const ValueKey('app_bottom_nav'),
+                          currentIndex: _index,
+                          onSelected: _onTabSelected,
+                          items: [
+                            NavItem(
+                              glyph: NavGlyphKind.home,
+                              label: context.s.navHome,
+                              onLongPress: (anchor) =>
+                                  showHomeQuickMenu(context, anchor),
+                            ),
+                            NavItem(
+                              glyph: NavGlyphKind.folder,
+                              label: context.s.navFolders,
+                            ),
+                            NavItem(
+                              glyph: NavGlyphKind.heart,
+                              label: context.s.navFavorites,
+                            ),
+                            NavItem(
+                              glyph: NavGlyphKind.music,
+                              label: context.s.navMusic,
+                              onLongPress: (anchor) =>
+                                  showMusicQuickMenu(context, anchor),
+                            ),
+                          ],
+                        ),
+                  );
+                },
               ),
             ],
           ),

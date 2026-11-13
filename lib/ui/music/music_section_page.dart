@@ -75,10 +75,12 @@ class _MusicSectionPageState extends State<MusicSectionPage> {
             ? buildSelectionAppBar(
                 context: context,
                 count: selection.count,
+                total: music.songs.length,
                 onClose: selection.clear,
                 onSelectAll: () => selection.selectAll([
                   for (final song in music.songs) song.id,
                 ]),
+                onDeselectAll: selection.clear,
               )
             : AppBar(
                 title: Text(title),

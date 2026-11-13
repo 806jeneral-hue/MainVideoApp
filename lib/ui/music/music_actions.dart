@@ -40,6 +40,7 @@ Future<void> playSongs(
   Map<String, int>? plays,
 }) {
   if (songs.isEmpty) return Future.value();
+  FocusManager.instance.primaryFocus?.unfocus();
   _askForNotificationsOnce();
   final start = shuffle == true ? Random().nextInt(songs.length) : index;
   final opening = context.read<PlaybackController>().open(

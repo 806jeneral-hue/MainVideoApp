@@ -131,6 +131,7 @@ class AppTheme {
   /// [glassStrength], so it needs no context.
   static AppStyle style = AppStyle.glass;
   static bool get isSolid => style == AppStyle.solid;
+  static bool get isSunset => style == AppStyle.sunset;
 
   /// The solid look's cards and bars: white on the warm light page, a deep
   /// graphite on the dark one.
@@ -138,6 +139,12 @@ class AppTheme {
       isDark ? const Color(0xFF1D1F24) : Colors.white;
   static Color solidBar(bool isDark) =>
       isDark ? const Color(0xFF1B1D22) : Colors.white;
+
+  /// The sunset glow look's cards and bars: clean white on light, deep obsidian on dark.
+  static Color sunsetCard(bool isDark) =>
+      isDark ? const Color(0xFF181921) : Colors.white;
+  static Color sunsetBar(bool isDark) =>
+      isDark ? const Color(0xFF111219) : Colors.white;
 
   static List<BoxShadow> _solidShadow(bool isDark, {bool floating = false}) =>
       isDark
@@ -181,6 +188,43 @@ class AppTheme {
     );
   }
 
+  static ShapeDecoration _sunsetSurface(
+    ThemeData theme, {
+    required BorderRadius radius,
+    required bool selected,
+    required bool floating,
+  }) {
+    final isDark = theme.brightness == Brightness.dark;
+    final base = sunsetCard(isDark);
+    return ShapeDecoration(
+      color: selected
+          ? Color.alphaBlend(
+              theme.colorScheme.primary.withValues(alpha: isDark ? 0.20 : 0.12),
+              base,
+            )
+          : base,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary.withValues(alpha: 0.55)
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.05)),
+        ),
+      ),
+      shadows: isDark
+          ? const []
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: floating ? 0.08 : 0.04),
+                blurRadius: floating ? 18 : 10,
+                offset: Offset(0, floating ? 5 : 2),
+              ),
+            ],
+    );
+  }
+
   /// Reads the setting as an alpha between [thin] and [thick].
   static double _glassAlpha(double thin, double thick) =>
       thin + (thick - thin) * glassStrength.clamp(0, 1);
@@ -212,6 +256,14 @@ class AppTheme {
   }) {
     if (isSolid) {
       return _solidSurface(
+        theme,
+        radius: radius ?? cardRadius,
+        selected: selected,
+        floating: floating,
+      );
+    }
+    if (isSunset) {
+      return _sunsetSurface(
         theme,
         radius: radius ?? cardRadius,
         selected: selected,
@@ -285,6 +337,17 @@ class AppTheme {
         ),
       );
     }
+    if (isSunset) {
+      return BoxDecoration(
+        color: sunsetBar(isDark),
+        borderRadius: radius,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      );
+    }
     final fill = isDark
         ? Colors.white.withValues(alpha: _glassAlpha(0.06, 0.20))
         : Colors.white.withValues(alpha: _glassAlpha(0.38, 0.78));
@@ -331,11 +394,12 @@ class AppTheme {
     bool clearPages = false,
   ]) => _build(
     accentOption: accentOption ?? AccentPalette.options.first,
-    clearPages: clearPages,
+    // Sunset uses a painted backdrop — scaffold must be transparent to reveal it.
+    clearPages: clearPages || isSunset,
     brightness: Brightness.light,
-    background: lightBackground,
-    surface: lightSurface,
-    surfaceHigh: lightSurfaceHigh,
+    background: isSunset ? const Color(0xFFF9F9F9) : lightBackground,
+    surface: isSunset ? Colors.white : lightSurface,
+    surfaceHigh: isSunset ? const Color(0xFFF2F2F2) : lightSurfaceHigh,
     onSurface: lightOnSurface,
     muted: lightMuted,
   );
@@ -345,11 +409,12 @@ class AppTheme {
     bool clearPages = false,
   ]) => _build(
     accentOption: accentOption ?? AccentPalette.options.first,
-    clearPages: clearPages,
+    // Sunset uses a painted backdrop — scaffold must be transparent to reveal it.
+    clearPages: clearPages || isSunset,
     brightness: Brightness.dark,
-    background: darkBackground,
-    surface: darkSurface,
-    surfaceHigh: darkSurfaceHigh,
+    background: isSunset ? const Color(0xFF0D0E12) : darkBackground,
+    surface: isSunset ? const Color(0xFF181921) : darkSurface,
+    surfaceHigh: isSunset ? const Color(0xFF1F2030) : darkSurfaceHigh,
     onSurface: darkOnSurface,
     muted: darkMuted,
   );

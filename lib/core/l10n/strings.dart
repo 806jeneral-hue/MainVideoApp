@@ -49,6 +49,7 @@ abstract class Strings {
   String get filterRecentlyAdded;
   String get filterRecentlyPlayed;
   String get allVideos;
+  String get videos;
   String stillScanning(String count);
   String matchingQuery(String count, String query);
   String sortedBy(String count, String field);
@@ -122,6 +123,9 @@ abstract class Strings {
   String get folderEmpty;
   String get folderEmptyBody;
   String addCount(int count);
+  String addCountBadge(int count);
+  String get alreadyAdded;
+  String get addMedia;
 
   // ------------------------------------------------------------ video actions
   String get play;
@@ -153,6 +157,7 @@ abstract class Strings {
   String get move;
   String get remove;
   String get selectAll;
+  String get deselectAll;
 
   // ------------------------------------------------------------------- move
   String moveCount(int count);
@@ -352,6 +357,8 @@ class StringsEn extends Strings {
   @override
   String get allVideos => 'All videos';
   @override
+  String get videos => 'Videos';
+  @override
   String stillScanning(String count) => 'Still scanning…  $count so far';
   @override
   String matchingQuery(String count, String query) =>
@@ -499,6 +506,12 @@ class StringsEn extends Strings {
   String get folderEmptyBody => 'This folder has no videos any more.';
   @override
   String addCount(int count) => 'Add $count';
+  @override
+  String addCountBadge(int count) => 'Add ($count)';
+  @override
+  String get alreadyAdded => 'Already added';
+  @override
+  String get addMedia => 'Add videos/songs';
 
   @override
   String get play => 'Play';
@@ -561,6 +574,8 @@ class StringsEn extends Strings {
   String get remove => 'Remove';
   @override
   String get selectAll => 'Select all';
+  @override
+  String get deselectAll => 'Deselect all';
 
   @override
   String moveCount(int count) => 'Move ${videoCount(count)}';
@@ -888,6 +903,8 @@ class StringsAr extends Strings {
   @override
   String get allVideos => 'كل الفيديوهات';
   @override
+  String get videos => 'الفيديوهات';
+  @override
   String stillScanning(String count) => 'جارٍ الفحص…  $count حتى الآن';
   @override
   String matchingQuery(String count, String query) =>
@@ -1035,6 +1052,12 @@ class StringsAr extends Strings {
   String get folderEmptyBody => 'هذا المجلد لم يعد يحتوي على فيديوهات.';
   @override
   String addCount(int count) => 'إضافة $count';
+  @override
+  String addCountBadge(int count) => 'إضافة ($count)';
+  @override
+  String get alreadyAdded => 'مُضاف بالفعل';
+  @override
+  String get addMedia => 'إضافة فيديوهات/صوتيات';
 
   @override
   String get play => 'تشغيل';
@@ -1097,6 +1120,8 @@ class StringsAr extends Strings {
   String get remove => 'إزالة';
   @override
   String get selectAll => 'تحديد الكل';
+  @override
+  String get deselectAll => 'إلغاء تحديد الكل';
 
   @override
   String moveCount(int count) => 'نقل ${videoCount(count)}';
@@ -1449,6 +1474,7 @@ extension ImprovementStrings on Strings {
       : 'The look of the whole app. Each has a light and a dark mode.';
   String get styleGlass => _isArabic ? 'زجاجي' : 'Glass';
   String get styleSolid => _isArabic ? 'كلاسيك' : 'Classic';
+  String get styleSunset => _isArabic ? 'غروب الشمس' : 'Sunset';
   String get glassStrengthBody => _isArabic
       ? 'اسحب لتتحكم في مدى شفافية البطاقات والأزرار.'
       : 'Slide to set how see-through cards and buttons are.';

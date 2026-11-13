@@ -7,6 +7,8 @@ import '../../../data/models/song.dart';
 import '../../../data/services/album_art_service.dart';
 import '../../../core/theme/app_icons.dart';
 
+import '../../../data/services/thumbnail_service.dart';
+
 /// A song's album cover, or a soft tinted tile with a note when it has none.
 ///
 /// Covers come from [AlbumArtService]: one read per album, cached in memory
@@ -46,6 +48,18 @@ class _AlbumArtState extends State<AlbumArt> {
     return 640;
   }
 
+  static bool _isVideo(Song s) {
+    final lower = s.id.toLowerCase();
+    return s.album == 'Videos' ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.3gp') ||
+        lower.endsWith('.ts');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -56,12 +70,42 @@ class _AlbumArtState extends State<AlbumArt> {
   void didUpdateWidget(covariant AlbumArt oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.song.albumKey != widget.song.albumKey ||
+        oldWidget.song.id != widget.song.id ||
         oldWidget.decodeSize != widget.decodeSize) {
       _resolve();
     }
   }
 
   void _resolve() {
+    final song = widget.song;
+
+    if (_isVideo(song)) {
+      final cached = ThumbnailService.peek(
+        '${song.mediaId}',
+        _pixels,
+        _pixels,
+      );
+      if (cached != null) {
+        _bytes = cached;
+        _loaded = true;
+        return;
+      }
+      _loaded = false;
+      ThumbnailService.load(
+        '${song.mediaId}',
+        width: _pixels,
+        height: _pixels,
+        durationMs: song.durationMs,
+      ).then((bytes) {
+        if (!mounted || widget.song.id != song.id) return;
+        setState(() {
+          _bytes = bytes;
+          _loaded = true;
+        });
+      });
+      return;
+    }
+
     final cached = AlbumArtService.peek(widget.song, _pixels);
     if (cached != null) {
       _bytes = cached.$1;
@@ -69,7 +113,6 @@ class _AlbumArtState extends State<AlbumArt> {
       return;
     }
     _loaded = false;
-    final song = widget.song;
     AlbumArtService.load(song, size: _pixels).then((bytes) {
       if (!mounted || widget.song.albumKey != song.albumKey) return;
       setState(() {

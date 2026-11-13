@@ -48,6 +48,7 @@ Future<void> openPlayer(
   Map<String, int>? plays,
 }) async {
   if (queue.isEmpty) return;
+  FocusManager.instance.primaryFocus?.unfocus();
 
   final playback = context.read<PlaybackController>();
   final navigator = Navigator.of(context, rootNavigator: true);

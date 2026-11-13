@@ -6,13 +6,13 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/models/playable.dart';
 import '../../data/models/song.dart';
 import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
 import '../common/bottom_fade.dart';
 import '../common/empty_state.dart';
 import '../common/glass.dart';
+import '../common/search_focus.dart';
 import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
 import 'music_actions.dart';
@@ -38,10 +38,8 @@ class MusicPage extends StatefulWidget {
   State<MusicPage> createState() => _MusicPageState();
 }
 
-class _MusicPageState extends State<MusicPage> {
-  final TextEditingController _searchController = TextEditingController();
+class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> {
   final ScrollController _ownScrollController = ScrollController();
-  bool _searching = false;
 
   @override
   void initState() {
@@ -54,21 +52,16 @@ class _MusicPageState extends State<MusicPage> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     _ownScrollController.dispose();
     super.dispose();
   }
 
-  void _toggleSearch(MusicController music) {
-    setState(() => _searching = !_searching);
-    if (!_searching) {
-      _searchController.clear();
-      music.clearQuery();
-    }
+  void _open(Widget page) {
+    hideKeyboard();
+    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
-
-  void _open(Widget page) =>
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +71,12 @@ class _MusicPageState extends State<MusicPage> {
 
     final header = TabHeader(
       title: s.music,
-      searching: _searching,
-      searchController: _searchController,
+      searching: isSearching,
+      searchController: searchController,
+      searchFocusNode: searchFocusNode,
       searchHint: s.searchMusic,
       onQueryChanged: music.setQuery,
-      onToggleSearch: () => _toggleSearch(music),
+      onToggleSearch: () => toggleSearch(onClear: music.clearQuery),
       // Sorting belongs to the song list itself, not to the library home.
       onSortAndLayout: null,
     );
@@ -98,32 +92,40 @@ class _MusicPageState extends State<MusicPage> {
       );
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        color: context.accent,
-        onRefresh: music.refresh,
-        child: BottomFade(
-          child: CustomScrollView(
-            controller: scrollController,
-            slivers: [
-              SliverToBoxAdapter(child: header),
-              if (music.query.isNotEmpty)
-                ..._searchSlivers(context, music)
-              else if (music.allSongs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    icon: AppIcons.library_music_outlined,
-                    title: s.noSongsFound,
-                    message: s.noSongsFoundBody,
-                  ),
-                )
-              else
-                ..._librarySlivers(context, music),
-              SliverToBoxAdapter(
-                child: SizedBox(height: listBottomInset(context)),
-              ),
-            ],
+    return PopScope(
+      canPop: !isSearching && searchController.text.isEmpty && !searchFocusNode.hasFocus,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (handleSearchPop(onClear: music.clearQuery)) return;
+      },
+      child: Scaffold(
+        body: RefreshIndicator(
+          color: context.accent,
+          onRefresh: music.refresh,
+          child: BottomFade(
+            child: CustomScrollView(
+              controller: scrollController,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverToBoxAdapter(child: header),
+                if (music.query.isNotEmpty)
+                  ..._searchSlivers(context, music)
+                else if (music.allSongs.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: AppIcons.library_music_outlined,
+                      title: s.noSongsFound,
+                      message: s.noSongsFoundBody,
+                    ),
+                  )
+                else
+                  ..._librarySlivers(context, music),
+                SliverToBoxAdapter(
+                  child: SizedBox(height: listBottomInset(context)),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,6 +1,8 @@
 import 'dart:io';
 
-import 'playable.dart';
+import 'song.dart';
+
+export 'playable.dart';
 
 /// A single video file discovered on the device.
 ///
@@ -19,6 +21,40 @@ class Video implements Playable {
     required this.width,
     required this.height,
   });
+
+  factory Video.fromSong(Song song) => Video(
+    id: song.id,
+    assetId: '${song.mediaId}',
+    title: song.title.isNotEmpty ? song.title : song.displayName,
+    durationMs: song.durationMs,
+    sizeBytes: song.sizeBytes,
+    dateAdded: song.dateAdded,
+    dateModified: song.dateAdded,
+    width: 0,
+    height: 0,
+  );
+
+  factory Video.fromPath(String path, {String? title, int? sizeBytes}) {
+    final file = File(path);
+    final fileName =
+        title ??
+        (path.split(Platform.pathSeparator).isNotEmpty
+            ? path.split(Platform.pathSeparator).last
+            : path);
+    final length = sizeBytes ?? (file.existsSync() ? file.lengthSync() : 0);
+    final now = DateTime.now();
+    return Video(
+      id: path,
+      assetId: path,
+      title: fileName,
+      durationMs: 0,
+      sizeBytes: length,
+      dateAdded: now,
+      dateModified: now,
+      width: 1920,
+      height: 1080,
+    );
+  }
 
   @override
   final String id;
@@ -39,7 +75,30 @@ class Video implements Playable {
   String get subtitle => folderName;
 
   @override
-  bool get isAudio => false;
+  bool get isAudio {
+    final lower = id.toLowerCase();
+    return lower.endsWith('.mp3') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg') ||
+        lower.endsWith('.opus') ||
+        (!isArchive && width == 0 && height == 0);
+  }
+
+  /// Whether the file is a compressed archive containing media (.zip, .rar, .7z, etc.).
+  bool get isArchive {
+    final lower = id.toLowerCase();
+    return lower.endsWith('.zip') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz') ||
+        lower.endsWith('.tgz') ||
+        lower.endsWith('.bz2') ||
+        lower.endsWith('.xz');
+  }
 
   Duration get duration => Duration(milliseconds: durationMs);
 
@@ -57,10 +116,12 @@ class Video implements Playable {
     return i < 0 ? p : p.substring(i + 1);
   }
 
-  /// `MP4`, `MKV`, ... derived from the extension.
+  /// `MP4`, `MKV`, `ZIP`, `RAR` ... derived from the extension.
   String get fileType {
     final i = title.lastIndexOf('.');
-    if (i < 0 || i == title.length - 1) return 'VIDEO';
+    if (i < 0 || i == title.length - 1) {
+      return isArchive ? 'ZIP' : 'VIDEO';
+    }
     return title.substring(i + 1).toUpperCase();
   }
 

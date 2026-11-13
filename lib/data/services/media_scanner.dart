@@ -33,31 +33,39 @@ class MediaScanner {
         updateTimeCond: DateTimeCond.def().copyWith(ignore: true),
       ),
     );
-    if (albums.isEmpty) return const [];
-
-    final all = albums.first;
-    final total = await all.assetCountAsync;
-    if (total == 0) return const [];
-
-    final added = await MediaIndex.videoDatesAdded();
     final videos = <Video>[];
-    var done = 0;
+    final added = await MediaIndex.videoDatesAdded();
 
-    for (var start = 0; start < total; start += _batchSize) {
-      final end = (start + _batchSize).clamp(0, total);
-      final assets = await all.getAssetListRange(start: start, end: end);
-      final resolved = await Future.wait(
-        assets.map((asset) => _toVideo(asset, added)),
-      );
+    if (albums.isNotEmpty) {
+      final all = albums.first;
+      final total = await all.assetCountAsync;
 
-      final batch = <Video>[];
-      for (final v in resolved) {
-        if (v != null) batch.add(v);
+      if (total > 0) {
+        var done = 0;
+        for (var start = 0; start < total; start += _batchSize) {
+          final end = (start + _batchSize).clamp(0, total);
+          final assets = await all.getAssetListRange(start: start, end: end);
+          final resolved = await Future.wait(
+            assets.map((asset) => _toVideo(asset, added)),
+          );
+
+          final batch = <Video>[];
+          for (final v in resolved) {
+            if (v != null) batch.add(v);
+          }
+          videos.addAll(batch);
+          done += assets.length;
+          onBatch?.call(batch);
+          onProgress?.call(done, total);
+        }
       }
-      videos.addAll(batch);
-      done += assets.length;
-      onBatch?.call(batch);
-      onProgress?.call(done, total);
+    }
+
+    // Also scan compressed archives (.zip, .rar, .7z, etc.) on the device
+    final archives = await MediaIndex.scanArchives();
+    if (archives.isNotEmpty) {
+      videos.addAll(archives);
+      onBatch?.call(archives);
     }
 
     return videos;
@@ -141,6 +149,12 @@ class MediaScanner {
         if (v != null) videos.add(v);
       }
     }
+
+    final archives = await MediaIndex.scanArchives();
+    if (archives.isNotEmpty) {
+      videos.addAll(archives);
+    }
+
     return videos;
   }
 

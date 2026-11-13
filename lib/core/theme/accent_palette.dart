@@ -37,7 +37,17 @@ class AccentPalette {
   /// The bright orange the solid look comes in.
   static const String emberKey = 'ember';
 
+  /// The radiant sunset orange the Sunset Glow theme comes in.
+  static const String sunsetKey = 'sunset';
+
   static const List<AccentOption> options = [
+    AccentOption(
+      key: 'sunset',
+      onLight: Color(0xFFFF5722),
+      onDark: Color(0xFFFF7A3D),
+      washLight: Color(0xFFFFF0EB),
+      washDark: Color(0xFF381B12),
+    ),
     AccentOption(
       key: 'ember',
       onLight: Color(0xFFF2782B),

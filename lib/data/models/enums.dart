@@ -1,9 +1,9 @@
 /// How the home / folder lists are laid out (phase 2).
 enum ViewMode { list, compact, grid }
 
-/// The look of the whole app: see-through frosted glass (the original), or
-/// solid cards on a warm backdrop with a bold accent.
-enum AppStyle { glass, solid }
+/// The look of the whole app: see-through frosted glass (the original), solid,
+/// or sunset glow (vibrant dark obsidian with warm radiant orange accents).
+enum AppStyle { glass, solid, sunset }
 
 /// Sort options required by phase 2, plus the custom drag-and-drop order that
 /// each folder and playlist can keep for itself.

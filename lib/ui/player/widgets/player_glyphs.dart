@@ -9,6 +9,10 @@ enum PlayerGlyphKind {
   displayMode,
   rotate,
   fastForward,
+  /// A single filled triangle pointing right — use for "skip to next".
+  skipNext,
+  /// A single filled triangle pointing left — use for "skip to previous".
+  skipPrevious,
 }
 
 class PlayerGlyph extends StatelessWidget {
@@ -168,6 +172,36 @@ class _PlayerGlyphPainter extends CustomPainter {
             _fill,
           );
         }
+
+      case PlayerGlyphKind.skipNext:
+        // A single plump rounded triangle pointing right — no vertical bar.
+        canvas.drawPath(
+          Path()
+            ..moveTo(4.5, 4.8)
+            ..cubicTo(4.5, 3.4, 6.0, 2.6, 7.2, 3.3)
+            ..lineTo(20.0, 11.1)
+            ..cubicTo(21.2, 11.8, 21.2, 12.2, 20.0, 12.9)
+            ..lineTo(7.2, 20.7)
+            ..cubicTo(6.0, 21.4, 4.5, 20.6, 4.5, 19.2)
+            ..close(),
+          _fill,
+        );
+
+      case PlayerGlyphKind.skipPrevious:
+        // Mirror of skipNext — points left.
+        canvas.translate(24, 0);
+        canvas.scale(-1, 1);
+        canvas.drawPath(
+          Path()
+            ..moveTo(4.5, 4.8)
+            ..cubicTo(4.5, 3.4, 6.0, 2.6, 7.2, 3.3)
+            ..lineTo(20.0, 11.1)
+            ..cubicTo(21.2, 11.8, 21.2, 12.2, 20.0, 12.9)
+            ..lineTo(7.2, 20.7)
+            ..cubicTo(6.0, 21.4, 4.5, 20.6, 4.5, 19.2)
+            ..close(),
+          _fill,
+        );
     }
 
     canvas.restore();

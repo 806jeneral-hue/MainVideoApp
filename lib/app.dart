@@ -64,10 +64,13 @@ class MainVideoApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) {
             final library = context.read<LibraryController>();
+            final music = context.read<MusicController>();
+            library.songLookup = (id) => music.songById(id);
+            music.videoLookup = (id) => library.videoById(id);
             final playback = PlaybackController(
               settings: context.read<SettingsController>(),
               library: library,
-              music: context.read<MusicController>(),
+              music: music,
               bookmarks: context.read<BookmarkController>(),
             );
             final bookmarks = context.read<BookmarkController>();

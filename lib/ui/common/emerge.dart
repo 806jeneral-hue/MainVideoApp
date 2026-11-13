@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'bottom_fade.dart';
+import 'tab_scroll.dart';
 
 /// Shrinks a list item away as it slides under the floating bottom bars.
 ///
@@ -27,6 +28,14 @@ class EmergeFromBottom extends StatelessWidget {
     // their size and place when it appears, and it floats over the last one.
     final bars = steadyBottomInset(context);
     if (bars <= 0) return child;
+
+    // On route pages (non-tab), bars = system inset only (~30-40 dp). With
+    // typical item heights of 100-150 dp the fade band is far too narrow:
+    // items become fully transparent while they are still well inside the
+    // visible viewport, making them look missing after the first scroll.
+    // The mini-player's own glass blur handles the visual separation there,
+    // so we can safely skip the effect for pushed routes.
+    if (!TabScroll.isTab(context)) return child;
 
     return _EmergeBox(
       line: MediaQuery.sizeOf(context).height - bars,
@@ -91,7 +100,20 @@ class _RenderEmerge extends RenderProxyBox {
 
     // Read while painting, so it is where the row is on this frame rather than
     // where it was when the list was last built.
-    final bottom = localToGlobal(Offset.zero).dy + size.height;
+    final globalTop = localToGlobal(Offset.zero).dy;
+    final bottom = globalTop + size.height;
+
+    // Guard: when a list item hasn't been laid out on screen yet (e.g. the
+    // first scroll into a folder), localToGlobal can return positions that are
+    // far outside the visible area (negative or beyond screen height * 2).
+    // In that case the emerge maths clamps t to 1.0 → alpha becomes 0 and the
+    // row disappears. We detect this by checking that the item's top edge is
+    // within a reasonable range and draw it normally when it isn't.
+    if (globalTop < -size.height || globalTop > _line + _band * 2) {
+      context.paintChild(child, offset);
+      return;
+    }
+
     final t = ((bottom - _line) / _band).clamp(0.0, 1.0);
     if (t <= 0) {
       context.paintChild(child, offset);

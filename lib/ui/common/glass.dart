@@ -313,6 +313,7 @@ class GlassIconButton extends StatelessWidget {
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onPressed,
+            canRequestFocus: false,
             customBorder: const CircleBorder(),
             child: Tooltip(
               message: tooltip,

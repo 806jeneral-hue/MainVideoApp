@@ -87,10 +87,10 @@ class VideoListTile extends StatelessWidget {
     final ratio = compact ? 1.75 : 1.55;
     final thumbHeight = extent != null
         ? (extent! - gap - pad * 2).clamp(34.0, 160.0)
-        : (compact ? 48.0 : (selectionMode ? 76.0 : 88.0));
+        : (compact ? 48.0 : 88.0);
     final thumbWidth = extent != null
         ? thumbHeight * ratio
-        : (compact ? 84.0 : (selectionMode ? 116.0 : 136.0));
+        : (compact ? 84.0 : 136.0);
 
     final row = Padding(
       padding: EdgeInsets.fromLTRB(
@@ -110,7 +110,6 @@ class VideoListTile extends StatelessWidget {
             type: MaterialType.transparency,
             child: InkWell(
               onTap: onTap,
-              onLongPress: onMore,
               borderRadius: compact
                   ? BorderRadius.circular(16)
                   : AppTheme.cardRadius,
@@ -119,21 +118,6 @@ class VideoListTile extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (selectionMode) ...[
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: compact ? 16 : 22,
-                          right: 6,
-                        ),
-                        child: Icon(
-                          selected
-                              ? AppIcons.check_circle_rounded
-                              : AppIcons.circle_outlined,
-                          color: selected ? accent : muted,
-                          size: 22,
-                        ),
-                      ),
-                    ],
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -154,6 +138,32 @@ class VideoListTile extends StatelessWidget {
                             child: MarkRibbon(
                               color: accent,
                               width: compact ? 11 : 14,
+                            ),
+                          ),
+                        if (selectionMode)
+                          PositionedDirectional(
+                            top: compact ? 4 : 6,
+                            start: compact ? 4 : 6,
+                            child: Container(
+                              width: compact ? 20 : 24,
+                              height: compact ? 20 : 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: selected
+                                    ? accent
+                                    : Colors.black.withValues(alpha: 0.55),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                selected
+                                    ? AppIcons.check_rounded
+                                    : null,
+                                size: compact ? 13 : 16,
+                                color: AppTheme.accentOnDark,
+                              ),
                             ),
                           ),
                       ],
@@ -224,7 +234,7 @@ class VideoListTile extends StatelessWidget {
                         ),
                       )
                     else
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 34, height: 34),
                   ],
                 ),
               ),

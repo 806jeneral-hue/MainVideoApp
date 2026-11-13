@@ -34,3 +34,31 @@ Future<void> scrollToTop(ScrollController controller) async {
     curve: Curves.easeOutCubic,
   );
 }
+
+/// Allows tabs inside [HomeShell] to replace the bottom navigation bar with an
+/// active selection actions bar without resizing the page or cutting content.
+class TabSelectionBridge extends InheritedWidget {
+  const TabSelectionBridge({
+    super.key,
+    required this.selectionBarNotifier,
+    required super.child,
+  });
+
+  final ValueNotifier<Widget?> selectionBarNotifier;
+
+  static ValueNotifier<Widget?>? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TabSelectionBridge>()?.selectionBarNotifier;
+
+  static void set(BuildContext context, Widget? bar) {
+    final notifier = context
+        .getInheritedWidgetOfExactType<TabSelectionBridge>()
+        ?.selectionBarNotifier;
+    if (notifier != null && notifier.value != bar) {
+      notifier.value = bar;
+    }
+  }
+
+  @override
+  bool updateShouldNotify(TabSelectionBridge oldWidget) =>
+      oldWidget.selectionBarNotifier != selectionBarNotifier;
+}

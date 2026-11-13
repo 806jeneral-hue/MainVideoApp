@@ -15,6 +15,7 @@ import '../common/glass_dialog.dart';
 import '../common/glass_snack_bar.dart';
 import '../../core/theme/app_icons.dart';
 import '../../state/bookmark_controller.dart';
+import '../../state/playback_controller.dart';
 import '../../data/models/collection_prefs.dart';
 import '../common/quick_tiles.dart';
 
@@ -224,7 +225,12 @@ class _VideoActionsSheet extends StatelessWidget {
                     label: context.s.deleteFromDevice,
                     onTap: () async {
                       Navigator.pop(context);
-                      await confirmDeleteVideo(context, library, video);
+                      final playback = context.read<PlaybackController>();
+                      final videoId = video.id;
+                      final deleted = await confirmDeleteVideo(context, library, video);
+                      if (deleted && playback.hasSession) {
+                        await playback.removePlayable(videoId);
+                      }
                     },
                   ),
                 ],
@@ -285,7 +291,7 @@ Future<void> promptRenameVideo(
 }
 
 /// Confirms, then deletes the file. Shared with the player's options sheet.
-Future<void> confirmDeleteVideo(
+Future<bool> confirmDeleteVideo(
   BuildContext context,
   LibraryController library,
   Video video,
@@ -296,27 +302,27 @@ Future<void> confirmDeleteVideo(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => GlassDialog(
-      title: Text(context.s.deleteVideoTitle),
-      content: Text(context.s.deleteVideoBody(video.displayName)),
+      title: Text(s.deleteVideoTitle),
+      content: Text(s.deleteVideoBody(video.displayName)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, false),
-          child: Text(context.s.cancel),
+          child: Text(s.cancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
           onPressed: () => Navigator.pop(dialogContext, true),
-          child: Text(context.s.delete),
+          child: Text(s.delete),
         ),
       ],
     ),
   );
 
-  if (confirmed != true) return;
+  if (confirmed != true) return false;
   final result = await library.deleteVideo(video);
   if (result.ok) {
     messenger.showSnackBar(glassSnackBar(content: Text(s.videoDeleted)));
-    return;
+    return true;
   }
   messenger.showSnackBar(
     glassSnackBar(
@@ -327,6 +333,7 @@ Future<void> confirmDeleteVideo(
       }),
     ),
   );
+  return false;
 }
 
 extension on _VideoActionsSheet {

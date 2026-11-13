@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../data/models/enums.dart';
 
 /// The app's own background, shown whenever no picture is chosen in Settings.
 ///
@@ -19,9 +20,13 @@ class DefaultBackdrop extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return RepaintBoundary(
       child: CustomPaint(
-        painter: AppTheme.isSolid
-            ? _SolidBackdropPainter(isDark)
-            : _BackdropPainter(isDark ? _Palette.dark : _Palette.light),
+        painter: switch (AppTheme.style) {
+          AppStyle.solid => _SolidBackdropPainter(isDark),
+          AppStyle.sunset => _SunsetBackdropPainter(isDark),
+          AppStyle.glass => _BackdropPainter(
+            isDark ? _Palette.dark : _Palette.light,
+          ),
+        },
         child: const SizedBox.expand(),
       ),
     );
@@ -414,3 +419,69 @@ class _SolidBackdropPainter extends CustomPainter {
   @override
   bool shouldRepaint(_SolidBackdropPainter old) => old.isDark != isDark;
 }
+
+/// The sunset glow look's backdrop: deep obsidian base with large, warm
+/// bokeh glows bleeding in from the left and right edges in dark mode —
+/// matching the reference design. Light mode is clean white porcelain.
+class _SunsetBackdropPainter extends CustomPainter {
+  const _SunsetBackdropPainter(this.isDark);
+
+  final bool isDark;
+
+  // Warm sunset orange/amber palette.
+  static const _sunsetOrange = Color(0xFFFF6B35);
+  static const _sunsetAmber = Color(0xFFFF9A4D);
+  static const _sunsetDeep = Color(0xFFE64A1A);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    if (w <= 0 || h <= 0) return;
+    final rect = Offset.zero & size;
+    final unit = math.min(w, h);
+
+    if (isDark) {
+      // ── Dark mode: near-black base ──────────────────────────────────────
+      canvas.drawRect(rect, Paint()..color = const Color(0xFF0D0E12));
+
+      // Large, soft orange bokeh glow bleeding in from the LEFT edge
+      // (centred at mid-height, matching the reference screenshot).
+      _glow(canvas, Offset(-unit * 0.05, h * 0.50), unit * 0.90, _sunsetOrange, 0.52);
+      _glow(canvas, Offset(-unit * 0.10, h * 0.55), unit * 1.10, _sunsetAmber, 0.20);
+
+      // Matching glow from the RIGHT edge, slightly above centre.
+      _glow(canvas, Offset(w + unit * 0.05, h * 0.38), unit * 0.85, _sunsetDeep, 0.48);
+      _glow(canvas, Offset(w + unit * 0.10, h * 0.32), unit * 1.05, _sunsetOrange, 0.18);
+
+      // Very subtle centre warmth so the blacks don't go completely cold.
+      _glow(canvas, Offset(w * 0.50, h * 0.90), unit * 0.70, _sunsetAmber, 0.06);
+    } else {
+      // ── Light mode: clean white/cream base ─────────────────────────────
+      canvas.drawRect(rect, Paint()..color = const Color(0xFFF9F9F9));
+      // Barely-there warm tint in one corner — keeps the white feeling alive.
+      _glow(canvas, Offset(w + unit * 0.05, -unit * 0.05), unit * 0.55,
+          const Color(0xFFFFB885), 0.18);
+    }
+  }
+
+  void _glow(Canvas canvas, Offset c, double r, Color color, double a) {
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: a),
+            color.withValues(alpha: a * 0.38),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.42, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SunsetBackdropPainter old) => old.isDark != isDark;
+}
+

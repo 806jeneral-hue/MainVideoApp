@@ -4,7 +4,6 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/play_plan.dart';
-import '../../data/models/playable.dart';
 import '../../data/models/song.dart';
 import '../../data/models/video.dart';
 import '../../data/repositories/play_plan_repository.dart';

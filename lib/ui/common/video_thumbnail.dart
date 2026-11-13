@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/video.dart';
+import '../../data/models/song.dart';
+import '../../data/services/album_art_service.dart';
 import '../../data/services/thumbnail_service.dart';
 import '../../core/theme/app_icons.dart';
 import 'app_icon.dart';
@@ -47,9 +49,38 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   int get _requestWidth => (widget.width * 2).round().clamp(120, 640);
   int get _requestHeight => (widget.height * 2).round().clamp(120, 640);
 
+  Song _toSong(Video v) => Song(
+    id: v.id,
+    mediaId: int.tryParse(v.assetId) ?? 0,
+    title: v.title,
+    artist: v.folderName,
+    album: '',
+    albumId: 0,
+    durationMs: v.durationMs,
+    sizeBytes: v.sizeBytes,
+    dateAdded: v.dateAdded,
+    track: 0,
+    year: 0,
+  );
+
   @override
   void initState() {
     super.initState();
+    if (widget.video.isArchive) {
+      _loading = false;
+      return;
+    }
+    if (widget.video.isAudio) {
+      final song = _toSong(widget.video);
+      final cached = AlbumArtService.peek(song, _requestWidth);
+      if (cached != null) {
+        _bytes = cached.$1;
+        _loading = false;
+        return;
+      }
+      _resolve();
+      return;
+    }
     // A cache hit is filled in before the first build, so a recycled tile
     // scrolling back into view paints its thumbnail immediately.
     final cached = ThumbnailService.peek(
@@ -68,7 +99,18 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   @override
   void didUpdateWidget(covariant VideoThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.video.assetId == widget.video.assetId) return;
+    if (oldWidget.video.id == widget.video.id) return;
+
+    if (widget.video.isAudio) {
+      final song = _toSong(widget.video);
+      final cached = AlbumArtService.peek(song, _requestWidth);
+      setState(() {
+        _bytes = cached?.$1;
+        _loading = cached == null;
+      });
+      if (cached == null) _resolve();
+      return;
+    }
 
     final cached = ThumbnailService.peek(
       widget.video.assetId,
@@ -83,10 +125,22 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   }
 
   Future<void> _resolve() async {
+    if (widget.video.isAudio) {
+      final song = _toSong(widget.video);
+      final bytes = await AlbumArtService.load(song, size: _requestWidth);
+      if (!mounted || widget.video.id != song.id) return;
+      setState(() {
+        _bytes = bytes;
+        _loading = false;
+      });
+      return;
+    }
+
     final bytes = await ThumbnailService.load(
       widget.video.assetId,
       width: _requestWidth,
       height: _requestHeight,
+      durationMs: widget.video.durationMs,
     );
     if (!mounted) return;
     setState(() {
@@ -119,29 +173,77 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
                         cacheWidth: _requestWidth,
                         filterQuality: FilterQuality.low,
                       )
-                    : Center(
-                        child: _loading
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: context.muted,
+                    : (widget.video.isArchive
+                        ? DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  context.accent.withValues(alpha: 0.40),
+                                  theme.colorScheme.surfaceContainerHighest,
+                                ],
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.folder_zip_rounded,
+                                color: context.accent,
+                                size: (widget.height * 0.45).clamp(20.0, 38.0),
+                              ),
+                            ),
+                          )
+                        : (widget.video.isAudio
+                            ? DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      context.accent.withValues(alpha: 0.30),
+                                      theme.colorScheme.surfaceContainerHighest,
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    AppIcons.music_note_rounded,
+                                    color: context.accent,
+                                    size: (widget.height * 0.42).clamp(
+                                      18.0,
+                                      36.0,
+                                    ),
+                                  ),
                                 ),
                               )
-                            : Icon(
-                                AppIcons.movie_outlined,
-                                color: context.muted.withValues(alpha: 0.7),
-                              ),
-                      ),
+                            : Center(
+                                child: _loading
+                                    ? SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: context.muted,
+                                        ),
+                                      )
+                                    : Icon(
+                                        AppIcons.movie_outlined,
+                                        color: context.muted.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                              ))),
               ),
               if (widget.showPlayGlyph) const Center(child: _PlayGlyph()),
-              if (widget.showDuration && widget.video.durationMs > 0)
+              if (widget.showDuration &&
+                  (widget.video.durationMs > 0 || widget.video.isArchive))
                 Positioned(
                   right: 7,
                   bottom: 7,
                   child: _DurationBadge(
-                    label: Fmt.durationMs(widget.video.durationMs),
+                    label: widget.video.isArchive
+                        ? widget.video.fileType
+                        : Fmt.durationMs(widget.video.durationMs),
                   ),
                 ),
               if (widget.progress > 0)

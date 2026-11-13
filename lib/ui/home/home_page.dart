@@ -1,34 +1,41 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/models/bookmark.dart';
 import '../../data/models/collection_prefs.dart';
+import '../../data/models/enums.dart';
+import '../../data/models/song.dart';
 import '../../data/models/video.dart';
+import '../../data/services/archive_playback_service.dart';
+import '../../data/services/permission_service.dart';
+import '../../state/bookmark_controller.dart';
 import '../../state/library_controller.dart';
+import '../../state/playback_controller.dart';
 import '../../state/settings_controller.dart';
-import '../common/empty_state.dart';
 import '../common/bottom_fade.dart';
 import '../common/drag_select.dart';
+import '../common/empty_state.dart';
 import '../common/fast_scroller.dart';
 import '../common/glass.dart';
+import '../common/search_focus.dart';
+import '../common/selection.dart';
 import '../common/tab_header.dart';
 import '../common/tab_scroll.dart';
-import '../common/selection.dart';
 import '../common/video_slivers.dart';
+import '../music/now_playing_page.dart';
 import '../player/player_page.dart';
 import '../video/video_actions_sheet.dart';
 import 'widgets/library_status_view.dart';
 import 'widgets/sort_sheet.dart';
-import '../../core/theme/app_icons.dart';
-import '../common/app_icon.dart';
-import '../../state/bookmark_controller.dart';
-import '../../data/models/bookmark.dart';
 
-/// Quick filters standing in for the Recently Added / Recently Played
+/// Quick filters standing in for the Recently Added / Recently Played / Archives
 /// sections of phase 6.
-enum HomeFilter { all, recentlyAdded, recentlyPlayed }
+enum HomeFilter { all, recentlyAdded, recentlyPlayed, archives }
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,25 +44,15 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
-  final TextEditingController _searchController = TextEditingController();
+class _HomePageState extends State<HomePage>
+    with VideoSelection<HomePage>, SearchFocusState<HomePage> {
   final ScrollController _ownScrollController = ScrollController();
-  bool _searching = false;
   HomeFilter _filter = HomeFilter.all;
 
   @override
   void dispose() {
-    _searchController.dispose();
     _ownScrollController.dispose();
     super.dispose();
-  }
-
-  void _toggleSearch(LibraryController library) {
-    setState(() => _searching = !_searching);
-    if (!_searching) {
-      _searchController.clear();
-      library.clearQuery();
-    }
   }
 
   List<Video> _videosFor(LibraryController library, HomeFilter filter) {
@@ -63,11 +60,50 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
       HomeFilter.all => library.homeVideos,
       HomeFilter.recentlyAdded => library.recentlyAdded,
       HomeFilter.recentlyPlayed => library.recentlyPlayed,
+      HomeFilter.archives =>
+        library.homeVideos.where((v) => v.isArchive).toList(),
     };
     // homeVideos already applies the search; the other two are raw lists.
     final q = library.query.trim().toLowerCase();
     if (filter == HomeFilter.all || q.isEmpty) return videos;
     return videos.where((v) => v.title.toLowerCase().contains(q)).toList();
+  }
+
+  Future<void> _pickAndPlay(BuildContext context) async {
+    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    try {
+      final result = await FilePickerPlatform.instance.pickFiles(
+        type: FileType.any,
+      );
+      if (result.isNotEmpty && result.first.path != null) {
+        final path = result.first.path!;
+        if (!context.mounted) return;
+        if (ArchivePlaybackService.isArchive(path)) {
+          await ArchivePlaybackService.openArchiveAndPlay(context, path);
+        } else {
+          final isAud = ArchivePlaybackService.isAudio(path);
+          if (isAud) {
+            final item = Song.fromPath(path);
+            final playback = context.read<PlaybackController>();
+            await playback.open(
+              queue: [item],
+              startIndex: 0,
+              queueTitle: item.displayName,
+            );
+            if (context.mounted) openNowPlaying(context);
+          } else {
+            final item = Video.fromPath(path);
+            await openPlayer(
+              context,
+              queue: [item],
+              startIndex: 0,
+              queueTitle: item.displayName,
+            );
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -95,139 +131,217 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
     // fall back to our own if this page is ever shown outside a tab.
     final scrollController = TabScroll.maybeOf(context) ?? _ownScrollController;
 
-    return Scaffold(
-      appBar: selectionMode
-          ? buildSelectionAppBar(
-              context: context,
-              count: selectedIds.length,
-              onClose: clearSelection,
-              onSelectAll: () => selectAll(videos),
-            )
-          : null,
-      bottomNavigationBar: selectionMode
-          ? SelectionActionsBar(
-              selected: selectedVideos(videos),
-              onDone: clearSelection,
-            )
-          : null,
-      body: RefreshIndicator(
-        color: context.accent,
-        onRefresh: library.refresh,
-        child: DragSelectArea(
-          controller: scrollController,
-          armed: dragArmed,
-          onHover: addToSelection,
-          onEnd: endDragSelection,
-          child: BottomFade(
-            child: FastScroller(
-              controller: scrollController,
-              // Starts below the floating header buttons.
-              topPadding: MediaQuery.paddingOf(context).top + 76,
-              bottomPadding: listBottomInset(context, extra: 0),
-              child: CustomScrollView(
+    // Update the shell's selection bar whenever the selection state changes.
+    // Using a post-frame callback avoids calling setState during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      TabSelectionBridge.set(
+        context,
+        selectionMode
+            ? SelectionActionsBar(
+                key: const ValueKey('home_selection_actions_bar'),
+                selected: selectedVideos(videos),
+                onDone: clearSelection,
+              )
+            : null,
+      );
+    });
+
+    return PopScope(
+      canPop: !isSearching && searchController.text.isEmpty && !selectionMode && !searchFocusNode.hasFocus,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (selectionMode) {
+          clearSelection();
+          return;
+        }
+        if (handleSearchPop(onClear: library.clearQuery)) return;
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        body: RefreshIndicator(
+          color: context.accent,
+          onRefresh: library.refresh,
+          child: DragSelectArea(
+            controller: scrollController,
+            armed: dragArmed,
+            selectionMode: selectionMode,
+            onLongPressStart: (id, index) {
+              if (index >= 0 && index < videos.length) {
+                startSelection(videos[index], index, videos);
+              }
+            },
+            onHover: (id, index) {
+              final width = MediaQuery.sizeOf(context).width;
+              final gridCols = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+              final cols = library.viewMode == ViewMode.grid ? gridCols : 1;
+              addToSelection(id, index, videos, cols);
+            },
+            onEnd: endDragSelection,
+            child: BottomFade(
+              child: FastScroller(
                 controller: scrollController,
-                slivers: [
-                  if (!selectionMode)
+                // Starts below the floating header buttons.
+                topPadding: MediaQuery.paddingOf(context).top + 76,
+                bottomPadding: listBottomInset(context, extra: 0),
+                child: CustomScrollView(
+                  key: const PageStorageKey('home_video_scroll'),
+                  controller: scrollController,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  slivers: [
                     SliverToBoxAdapter(
                       child: TabHeader(
                         title: context.s.appTitle,
-                        searching: _searching,
-                        searchController: _searchController,
+                        searching: isSearching,
+                        searchController: searchController,
+                        searchFocusNode: searchFocusNode,
                         searchHint: context.s.searchVideos,
                         onQueryChanged: library.setQuery,
-                        onToggleSearch: () => _toggleSearch(library),
-                        // Sort sits at the end of the filter row instead.
-                        onSortAndLayout: null,
+                        onToggleSearch: () => toggleSearch(onClear: library.clearQuery),
+                        onSortAndLayout: () => showSortSheet(
+                          context,
+                          CollectionKey.home,
+                          showViewMode: true,
+                        ),
+                        selectionMode: selectionMode,
+                        selectedCount: selectedIds.length,
+                        totalCount: videos.length,
+                        onCloseSelection: clearSelection,
+                        onSelectAll: () => selectAll(videos),
+                        onDeselectAll: deselectAll,
+                        onToggleViewMode: library.toggleViewMode,
+                        currentViewMode: library.viewMode,
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: _FilterRow(
-                      selected: filter,
-                      showHistory: showHistory,
-                      onChanged: (value) => setState(() => _filter = value),
-                      onSortAndLayout: () => showSortSheet(
-                        context,
-                        CollectionKey.home,
-                        showViewMode: true,
+                    SliverToBoxAdapter(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: selectionMode
+                            ? const SizedBox(width: double.infinity)
+                            : _FilterRow(
+                                selected: filter,
+                                showHistory: showHistory,
+                                onChanged: (value) => setState(() => _filter = value),
+                              ),
                       ),
                     ),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: AppTheme.space12),
-                  ),
-                  if (videos.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _emptyFor(context, filter, library),
-                    )
-                  else
-                    VideoSliver(
-                      videos: videos,
-                      viewMode: library.viewMode,
-                      marker: context.select<BookmarkController, StopMarker?>(
-                        (b) => b.markerFor(CollectionKey.home),
-                      ),
-                      selectionMode: selectionMode,
-                      selectedIds: selectedIds,
-                      // Custom order only applies to the unfiltered, unsearched list.
-                      onReorder:
-                          prefs.isManual &&
-                              filter == HomeFilter.all &&
-                              library.query.isEmpty
-                          ? (oldIndex, newIndex) => library.reorder(
-                              CollectionKey.home,
-                              videos,
-                              oldIndex,
-                              newIndex,
-                            )
-                          : null,
-                      progressOf: (video) => showHistory
-                          ? library.historyFor(video.id)?.progress ?? 0
-                          : 0,
-                      isFavorite: (video) => library.isFavorite(video.id),
-                      isPinned: (video) => library.isVideoPinned(video.id),
-                      subtitleOf:
-                          filter == HomeFilter.recentlyPlayed && showHistory
-                          ? (video) {
-                              final record = library.historyFor(video.id);
-                              if (record == null) return video.folderName;
-                              return '${Fmt.relativeDate(record.lastPlayed, context.s)}  ·  ${video.folderName}';
-                            }
-                          : null,
-                      onTap: (video, index) {
-                        if (selectionMode) {
-                          toggleSelection(video);
-                          return;
-                        }
-                        openPlayer(
-                          context,
-                          queue: videos,
-                          startIndex: index,
-                          queueTitle: _titleFor(filter),
-                          collection: CollectionKey.home,
-                        );
-                      },
-                      onMore: (video) {
-                        if (selectionMode) {
-                          toggleSelection(video);
-                          return;
-                        }
-                        showVideoActions(
-                          context,
-                          video,
-                          onPlay: () => openPlayer(
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: selectionMode ? AppTheme.space4 : AppTheme.space12),
+                    ),
+                    if (videos.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _emptyFor(context, filter, library),
+                      )
+                    else
+                      VideoSliver(
+                        videos: videos,
+                        viewMode: library.viewMode,
+                        marker: context.select<BookmarkController, StopMarker?>(
+                          (b) => b.markerFor(CollectionKey.home),
+                        ),
+                        selectionMode: selectionMode,
+                        selectedIds: selectedIds,
+                        // Custom order only applies to the unfiltered, unsearched list.
+                        onReorder:
+                            prefs.isManual &&
+                                filter == HomeFilter.all &&
+                                library.query.isEmpty
+                            ? (oldIndex, newIndex) => library.reorder(
+                                CollectionKey.home,
+                                videos,
+                                oldIndex,
+                                newIndex,
+                              )
+                            : null,
+                        progressOf: (video) => showHistory
+                            ? library.historyFor(video.id)?.progress ?? 0
+                            : 0,
+                        isFavorite: (video) => library.isFavorite(video.id),
+                        isPinned: (video) => library.isVideoPinned(video.id),
+                        subtitleOf:
+                            filter == HomeFilter.recentlyPlayed && showHistory
+                            ? (video) {
+                                final record = library.historyFor(video.id);
+                                if (record == null) return video.folderName;
+                                return '${Fmt.relativeDate(record.lastPlayed, context.s)}  ·  ${video.folderName}';
+                              }
+                            : null,
+                        onTap: (video, index) {
+                          // Close search and hide keyboard before opening player.
+                          if (isSearching) {
+                            closeSearch(onClear: library.clearQuery);
+                          } else {
+                            hideKeyboard();
+                          }
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          if (selectionMode) {
+                            toggleSelection(video);
+                            return;
+                          }
+                          if (video.isArchive) {
+                            ArchivePlaybackService.openArchiveAndPlay(
+                              context,
+                              video.path,
+                            );
+                            return;
+                          }
+                          final nonArchiveVideos = videos
+                              .where((v) => !v.isArchive)
+                              .toList();
+                          openPlayer(
                             context,
-                            queue: videos,
-                            startIndex: videos.indexOf(video),
+                            queue: nonArchiveVideos,
+                            startIndex: nonArchiveVideos
+                                .indexOf(video)
+                                .clamp(0, nonArchiveVideos.length - 1),
                             queueTitle: _titleFor(filter),
                             collection: CollectionKey.home,
-                          ),
-                          onSelect: () => startSelection(video),
-                          collection: CollectionKey.home,
-                        );
-                      },
-                    ),
-                ],
+                          );
+                        },
+                        onMore: (video) {
+                          if (selectionMode) {
+                            toggleSelection(video);
+                            return;
+                          }
+                          // Archive and normal files both show the actions sheet.
+                          showVideoActions(
+                            context,
+                            video,
+                            onPlay: () {
+                              if (video.isArchive) {
+                                ArchivePlaybackService.openArchiveAndPlay(
+                                  context,
+                                  video.path,
+                                );
+                              } else {
+                                openPlayer(
+                                  context,
+                                  queue: videos
+                                      .where((v) => !v.isArchive)
+                                      .toList(),
+                                  startIndex: videos
+                                      .where((v) => !v.isArchive)
+                                      .toList()
+                                      .indexOf(video),
+                                  queueTitle: _titleFor(filter),
+                                  collection: CollectionKey.home,
+                                );
+                              }
+                            },
+                            onSelect: () => startSelection(
+                              video,
+                              videos.indexOf(video),
+                              videos,
+                            ),
+                            collection: CollectionKey.home,
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -240,6 +354,7 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
     HomeFilter.all => context.s.allVideos,
     HomeFilter.recentlyAdded => context.s.filterRecentlyAdded,
     HomeFilter.recentlyPlayed => context.s.filterRecentlyPlayed,
+    HomeFilter.archives => 'المضغوطة',
   };
 
   Widget _emptyFor(
@@ -261,6 +376,32 @@ class _HomePageState extends State<HomePage> with VideoSelection<HomePage> {
         title: s.nothingWatchedYet,
         message: s.nothingWatchedYetBody,
       ),
+      HomeFilter.archives => EmptyState(
+        icon: Icons.folder_zip_rounded,
+        title: 'لا توجد ملفات مضغوطة ظاهرة',
+        message:
+            'لتصفح وتشغيل ملفات ZIP و RAR تلقائياً، تأكد من منح صلاحية قراءة الملفات أو اختر ملفاً يدوياً',
+        action: Wrap(
+          spacing: 12,
+          runSpacing: 10,
+          alignment: WrapAlignment.center,
+          children: [
+            FilledButton.icon(
+              onPressed: () async {
+                await PermissionService.requestManageStorage();
+                await library.refresh();
+              },
+              icon: const Icon(Icons.security_update_good_rounded, size: 18),
+              label: const Text('تفعيل إذن الوصول للملفات'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _pickAndPlay(context),
+              icon: const Icon(Icons.file_open_rounded, size: 18),
+              label: const Text('اختيار ملف مضغوط يدوياً'),
+            ),
+          ],
+        ),
+      ),
       _ => EmptyState(
         icon: AppIcons.movie_outlined,
         title: s.noVideosFound,
@@ -275,10 +416,8 @@ class _FilterRow extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     required this.showHistory,
-    required this.onSortAndLayout,
   });
 
-  final VoidCallback onSortAndLayout;
   final HomeFilter selected;
   final ValueChanged<HomeFilter> onChanged;
   final bool showHistory;
@@ -290,99 +429,46 @@ class _FilterRow extends StatelessWidget {
       HomeFilter.recentlyAdded: context.s.filterRecentlyAdded,
       if (showHistory)
         HomeFilter.recentlyPlayed: context.s.filterRecentlyPlayed,
+      HomeFilter.archives: 'المضغوطة',
     };
 
     return SizedBox(
       // Tall enough that the pills' shadows are not cut off by the list.
       height: 50,
-      child: Row(
-        children: [
-          Expanded(
-            // Pills that do not fit fade out before the sort button instead of
-            // sliding underneath it.
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (bounds) => LinearGradient(
-                begin: AlignmentDirectional.centerStart.resolve(
-                  Directionality.of(context),
-                ),
-                end: AlignmentDirectional.centerEnd.resolve(
-                  Directionality.of(context),
-                ),
-                colors: const [Colors.white, Colors.white, Colors.transparent],
-                stops: [0, 1 - 20 / bounds.width.clamp(40, double.infinity), 1],
-              ).createShader(bounds),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppTheme.pageMargin,
-                  AppTheme.space4,
-                  AppTheme.space8,
-                  AppTheme.space8,
-                ),
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  for (final entry in filters.entries)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        end: AppTheme.space8,
-                      ),
-                      child: _FilterPill(
-                        label: entry.value,
-                        selected: selected == entry.key,
-                        onTap: () => onChanged(entry.key),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) => LinearGradient(
+          begin: AlignmentDirectional.centerStart.resolve(
+            Directionality.of(context),
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              0,
-              AppTheme.space4,
-              AppTheme.pageMargin,
-              AppTheme.space8,
-            ),
-            child: _SortPill(onTap: onSortAndLayout),
+          end: AlignmentDirectional.centerEnd.resolve(
+            Directionality.of(context),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sort and layout, as a short glass capsule closing the filter row.
-class _SortPill extends StatelessWidget {
-  const _SortPill({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      child: GlassSurface(
-        radius: AppTheme.pillRadius,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppTheme.pillRadius,
-            child: Tooltip(
-              message: context.s.sortAndLayout,
-              child: SizedBox(
-                width: 46,
-                height: 36,
-                child: Center(
-                  child: AppIcon(
-                    AppIcons.swap_vert_rounded,
-                    size: 19,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+          colors: const [Colors.white, Colors.white, Colors.transparent],
+          stops: [0, 1 - 20 / bounds.width.clamp(40, double.infinity), 1],
+        ).createShader(bounds),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppTheme.pageMargin,
+            AppTheme.space4,
+            AppTheme.space8,
+            AppTheme.space8,
+          ),
+          clipBehavior: Clip.hardEdge,
+          children: [
+            for (final entry in filters.entries)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  end: AppTheme.space8,
+                ),
+                child: _FilterPill(
+                  label: entry.value,
+                  selected: selected == entry.key,
+                  onTap: () => onChanged(entry.key),
                 ),
               ),
-            ),
-          ),
+          ],
         ),
       ),
     );

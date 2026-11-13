@@ -24,10 +24,14 @@ class PermissionService {
     // Fall back to permission_handler in case the plugin could not decide.
     if (Platform.isAndroid) {
       if (await Permission.videos.request().isGranted) {
+        await ensureManageStorageOnce();
         return MediaAccess.granted;
       }
       final storage = await Permission.storage.request();
-      if (storage.isGranted) return MediaAccess.granted;
+      if (storage.isGranted) {
+        await ensureManageStorageOnce();
+        return MediaAccess.granted;
+      }
       if (storage.isPermanentlyDenied) return MediaAccess.permanentlyDenied;
     }
 

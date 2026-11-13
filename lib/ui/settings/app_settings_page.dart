@@ -345,17 +345,26 @@ class _StylePicker extends StatelessWidget {
                   child: _StyleOption(
                     label: s.styleGlass,
                     selected: settings.appStyle == AppStyle.glass,
-                    preview: const _StylePreview(solid: false),
+                    preview: const _StylePreview(style: AppStyle.glass),
                     onTap: () => settings.setAppStyle(AppStyle.glass),
                   ),
                 ),
-                const SizedBox(width: AppTheme.space12),
+                const SizedBox(width: AppTheme.space8),
                 Expanded(
                   child: _StyleOption(
                     label: s.styleSolid,
                     selected: settings.appStyle == AppStyle.solid,
-                    preview: const _StylePreview(solid: true),
+                    preview: const _StylePreview(style: AppStyle.solid),
                     onTap: () => settings.setAppStyle(AppStyle.solid),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.space8),
+                Expanded(
+                  child: _StyleOption(
+                    label: s.styleSunset,
+                    selected: settings.appStyle == AppStyle.sunset,
+                    preview: const _StylePreview(style: AppStyle.sunset),
+                    onTap: () => settings.setAppStyle(AppStyle.sunset),
                   ),
                 ),
               ],
@@ -402,7 +411,7 @@ class _StyleOption extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(aspectRatio: 0.78, child: preview),
+                child: AspectRatio(aspectRatio: 0.72, child: preview),
               ),
             ),
             const SizedBox(height: AppTheme.space8),
@@ -410,16 +419,20 @@ class _StyleOption extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (selected) ...[
-                  Icon(AppIcons.check_circle_rounded, size: 16, color: accent),
-                  const SizedBox(width: 6),
+                  Icon(AppIcons.check_circle_rounded, size: 14, color: accent),
+                  const SizedBox(width: 4),
                 ],
-                Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected
-                        ? theme.colorScheme.onSurface
-                        : context.muted,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? theme.colorScheme.onSurface
+                          : context.muted,
+                    ),
                   ),
                 ),
               ],
@@ -434,49 +447,59 @@ class _StyleOption extends StatelessWidget {
 /// A tiny drawing of a look — its page, a title, three rows and the bar — in
 /// the current light or dark mode, so the choice can be seen before it is made.
 class _StylePreview extends StatelessWidget {
-  const _StylePreview({required this.solid});
+  const _StylePreview({required this.style});
 
-  final bool solid;
+  final AppStyle style;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = solid ? const Color(0xFFF2782B) : context.accent;
+    final accent = switch (style) {
+      AppStyle.sunset => const Color(0xFFFF5722),
+      AppStyle.solid => const Color(0xFFF2782B),
+      AppStyle.glass => context.accent,
+    };
 
-    final page = solid
-        ? (isDark ? const Color(0xFF131417) : const Color(0xFFFAF5EF))
-        : (isDark ? const Color(0xFF151A28) : const Color(0xFFEEEAF1));
-    final card = solid
-        ? AppTheme.solidCard(isDark)
-        : Colors.white.withValues(alpha: isDark ? 0.10 : 0.55);
-    final edge = solid
-        ? Colors.transparent
-        : Colors.white.withValues(alpha: isDark ? 0.25 : 0.9);
+    final page = switch (style) {
+      AppStyle.sunset => (isDark ? const Color(0xFF0D0E12) : const Color(0xFFF8F6F2)),
+      AppStyle.solid => (isDark ? const Color(0xFF131417) : const Color(0xFFFAF5EF)),
+      AppStyle.glass => (isDark ? const Color(0xFF151A28) : const Color(0xFFEEEAF1)),
+    };
+    final card = switch (style) {
+      AppStyle.sunset => AppTheme.sunsetCard(isDark),
+      AppStyle.solid => AppTheme.solidCard(isDark),
+      AppStyle.glass => Colors.white.withValues(alpha: isDark ? 0.10 : 0.55),
+    };
+    final edge = switch (style) {
+      AppStyle.sunset => isDark ? const Color(0x33FF5722) : const Color(0x33000000),
+      AppStyle.solid => Colors.transparent,
+      AppStyle.glass => Colors.white.withValues(alpha: isDark ? 0.25 : 0.9),
+    };
     final line = isDark
         ? Colors.white.withValues(alpha: 0.28)
         : Colors.black.withValues(alpha: 0.14);
 
     Widget row({bool marked = false}) => Container(
-      height: 20,
-      margin: const EdgeInsets.only(bottom: 6),
+      height: 18,
+      margin: const EdgeInsets.only(bottom: 4),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: card,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(5),
         border: Border.all(color: edge, width: 0.8),
       ),
       child: Row(
         children: [
           Container(
             width: 3,
-            color: marked && solid ? accent : Colors.transparent,
+            color: marked && style != AppStyle.glass ? accent : Colors.transparent,
           ),
           const SizedBox(width: 4),
           Expanded(child: Container(height: 3, color: line)),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           Container(
-            width: 20,
-            height: 13,
+            width: 16,
+            height: 11,
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF3A3D45) : const Color(0xFFD8D2CC),
               borderRadius: BorderRadius.circular(3),
@@ -490,50 +513,50 @@ class _StylePreview extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: page,
-        gradient: solid
+        gradient: style == AppStyle.solid
             ? null
             : LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
                   page,
-                  Color.alphaBlend(accent.withValues(alpha: 0.25), page),
+                  Color.alphaBlend(accent.withValues(alpha: style == AppStyle.sunset ? 0.35 : 0.25), page),
                 ],
               ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                if (solid) ...[
-                  Container(width: 3, height: 10, color: accent),
+                if (style != AppStyle.glass) ...[
+                  Container(width: 3, height: 9, color: accent),
                   const SizedBox(width: 3),
                 ],
-                Container(width: 28, height: 5, color: line),
+                Container(width: 24, height: 4, color: line),
                 const Spacer(),
                 Container(
-                  width: 22,
-                  height: 9,
+                  width: 18,
+                  height: 8,
                   decoration: BoxDecoration(
                     color: accent,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             row(marked: true),
             row(),
             row(),
             const Spacer(),
             Container(
-              height: 14,
+              height: 12,
               decoration: BoxDecoration(
                 color: card,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: edge, width: 0.8),
               ),
             ),

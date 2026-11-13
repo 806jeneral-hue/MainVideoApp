@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
@@ -23,6 +24,13 @@ class ThumbnailService {
 
   /// Disk cache is trimmed once it grows past this.
   static const int _maxDiskBytes = 64 * 1024 * 1024;
+
+  /// Brightness below this threshold (0..255 scale) is considered "almost black".
+  static const double blackThreshold = 18.0;
+
+  /// Max value for signed 32-bit int. Glide/photo_manager casts 'frame' as Int
+  /// over the platform channel, so timestamps in microseconds must not exceed this.
+  static const int maxFrameMicros = 2147483647;
 
   static final LinkedHashMap<String, Uint8List?> _cache = LinkedHashMap();
   static final Map<String, Future<Uint8List?>> _inFlight = {};
@@ -54,6 +62,7 @@ class ThumbnailService {
     String assetId, {
     int width = 320,
     int height = 320,
+    int? durationMs,
   }) {
     final key = _key(assetId, width, height);
     if (_cache.containsKey(key)) return Future.value(_cache[key]);
@@ -71,10 +80,14 @@ class ThumbnailService {
       Uint8List? bytes;
       try {
         final asset = await AssetEntity.fromId(assetId);
-        bytes = await asset?.thumbnailDataWithSize(
-          ThumbnailSize(width, height),
-          quality: 80,
-        );
+        if (asset != null) {
+          bytes = await _generateRepresentativeThumbnail(
+            asset,
+            width: width,
+            height: height,
+            durationMs: durationMs,
+          );
+        }
       } catch (_) {
         bytes = null;
       } finally {
@@ -86,6 +99,107 @@ class ThumbnailService {
       _inFlight.remove(key);
       return bytes;
     });
+  }
+
+  /// Calculates candidate timestamps (in ms) to sample: starts around 10%
+  /// of the video, falling back to 25%, 50%, and 75% if earlier frames are black.
+  static List<int> getCandidateTimestampsMs(int totalDurationMs) {
+    if (totalDurationMs > 0) {
+      return [
+        (totalDurationMs * 0.10).round(),
+        (totalDurationMs * 0.25).round(),
+        (totalDurationMs * 0.50).round(),
+        (totalDurationMs * 0.75).round(),
+      ];
+    }
+    return const [1000, 3000, 5000, 0];
+  }
+
+  /// Decodes and selects a representative thumbnail frame, avoiding black intro frames.
+  static Future<Uint8List?> _generateRepresentativeThumbnail(
+    AssetEntity asset, {
+    required int width,
+    required int height,
+    int? durationMs,
+  }) async {
+    final totalDurationMs = (durationMs != null && durationMs > 0)
+        ? durationMs
+        : (asset.duration * 1000);
+
+    final candidateMs = getCandidateTimestampsMs(totalDurationMs);
+
+    Uint8List? bestBytes;
+    double bestBrightness = -1.0;
+
+    for (final ms in candidateMs) {
+      final frameMicros = (ms * 1000).clamp(0, maxFrameMicros);
+      try {
+        final bytes = await asset.thumbnailDataWithSize(
+          ThumbnailSize(width, height),
+          quality: 80,
+          frame: frameMicros,
+        );
+        if (bytes == null || bytes.isEmpty) continue;
+
+        final brightness = await calculateAverageBrightness(bytes);
+        // Non-black frame found: return immediately (avoids extra decodes).
+        if (brightness >= blackThreshold) {
+          return bytes;
+        }
+
+        // Keep the brightest candidate in case all tested frames are dark.
+        if (brightness > bestBrightness) {
+          bestBrightness = brightness;
+          bestBytes = bytes;
+        }
+      } catch (_) {
+        // Continue to next candidate on decoding error.
+      }
+    }
+
+    return bestBytes;
+  }
+
+  /// Calculates the average perceived luminance of [bytes] on a scale of 0.0 to 255.0.
+  /// Downscales to 32x32 during decode to evaluate 1,024 pixels in < 1ms.
+  static Future<double> calculateAverageBrightness(Uint8List bytes) async {
+    ui.Codec? codec;
+    ui.Image? image;
+    try {
+      codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: 32,
+        targetHeight: 32,
+      );
+      final frameInfo = await codec.getNextFrame();
+      image = frameInfo.image;
+      final byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (byteData == null) return 0.0;
+
+      final buffer = byteData.buffer.asUint8List();
+      final length = buffer.length;
+      if (length < 4) return 0.0;
+
+      int totalLuminance = 0;
+      final pixelCount = length ~/ 4;
+
+      for (var i = 0; i < length; i += 4) {
+        final r = buffer[i];
+        final g = buffer[i + 1];
+        final b = buffer[i + 2];
+        // Standard perceived luminance formula (ITU-R BT.601)
+        totalLuminance += (299 * r + 587 * g + 114 * b) ~/ 1000;
+      }
+
+      return totalLuminance / pixelCount;
+    } catch (_) {
+      return 0.0;
+    } finally {
+      image?.dispose();
+      codec?.dispose();
+    }
   }
 
   // ------------------------------------------------------------- disk layer
@@ -183,7 +297,7 @@ class ThumbnailService {
     }
   }
 
-  static String _key(String assetId, int w, int h) => '$assetId@${w}x$h';
+  static String _key(String assetId, int w, int h) => 'v2_$assetId@${w}x$h';
 
   /// Forgets in-memory entries only; the disk cache is the whole point and is
   /// kept unless [clearDisk] is called explicitly.

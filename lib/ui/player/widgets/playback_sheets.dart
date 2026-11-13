@@ -33,11 +33,11 @@ const List<int> kSleepMinutes = [15, 30, 45, 60];
 /// playback settings as small tiles showing their state, the marks as one row,
 /// and what can be done to the video file as tiles, with delete apart at the
 /// foot so it is never hit by mistake.
-Future<void> showPlayerOptionsSheet(BuildContext context) {
-  final player = context.read<PlaybackController>();
+Future<void> showPlayerOptionsSheet(BuildContext playerContext) {
+  final player = playerContext.read<PlaybackController>();
 
   return showAppSheet<void>(
-    context,
+    playerContext,
     builder: (_) => ChangeNotifierProvider.value(
       value: player,
       child: Consumer<PlaybackController>(
@@ -251,10 +251,31 @@ Future<void> showPlayerOptionsSheet(BuildContext context) {
                     DangerRow(
                       label: s.deleteFromDevice,
                       onTap: () async {
-                        Navigator.pop(context);
-                        // Leave the player first: the file is about to go.
-                        closePlayer(context, stopPlayback: true);
-                        await confirmDeleteVideo(context, library, video);
+                        final wasPlaying = player.isPlaying;
+                        final sheetNav = Navigator.of(context);
+                        if (wasPlaying) {
+                          await player.pause();
+                        }
+                        sheetNav.pop();
+
+                        if (!playerContext.mounted) return;
+
+                        final deleted = await confirmDeleteVideo(
+                          playerContext,
+                          library,
+                          video,
+                        );
+
+                        if (!playerContext.mounted) return;
+
+                        if (deleted) {
+                          final hasMore = await player.removeCurrentAndAdvance();
+                          if (!hasMore && playerContext.mounted) {
+                            closePlayer(playerContext, stopPlayback: true);
+                          }
+                        } else if (wasPlaying) {
+                          player.play();
+                        }
                       },
                     ),
                   ],

@@ -6,9 +6,11 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/utils/natural_sort.dart';
 import '../data/models/collection_prefs.dart';
 import '../data/models/enums.dart';
 import '../data/models/playlist.dart';
+import '../data/models/song.dart';
 import '../data/models/video.dart';
 import '../data/models/video_folder.dart';
 import '../data/models/watch_record.dart';
@@ -174,7 +176,7 @@ class LibraryController extends ChangeNotifier {
       final video = _byId[id];
       if (video != null) out.add(video);
     }
-    out.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    out.sort((a, b) => NaturalSort.compare(a.title, b.title));
     return out;
   }
 
@@ -253,6 +255,8 @@ class LibraryController extends ChangeNotifier {
   List<VideoFolder> get allFolders =>
       _allFoldersCache ??= _groupFolders(_allVideos);
 
+  Song? Function(String id)? songLookup;
+
   List<Playlist> get playlists => _playlistCache;
 
   List<Video> videosOfPlaylist(Playlist playlist) {
@@ -261,7 +265,14 @@ class LibraryController extends ChangeNotifier {
       final out = <Video>[];
       for (final id in playlist.videoIds) {
         final video = _byId[id];
-        if (video != null) out.add(video);
+        if (video != null) {
+          out.add(video);
+        } else {
+          final song = songLookup?.call(id);
+          if (song != null) {
+            out.add(Video.fromSong(song));
+          }
+        }
       }
       return orderVideos(key, out);
     });
@@ -681,6 +692,15 @@ class LibraryController extends ChangeNotifier {
   Future<void> addToPlaylist(String id, Iterable<String> videoIds) async {
     await _playlists.addVideos(id, videoIds);
     _playlistCache = _playlists.all();
+    final key = CollectionKey.playlist(id);
+    final prefs = prefsFor(key);
+    if (prefs.isManual) {
+      final updatedOrder = [
+        ...prefs.manualOrder,
+        ...videoIds.where((v) => !prefs.manualOrder.contains(v)),
+      ];
+      await _writePrefs(key, prefs.copyWith(manualOrder: updatedOrder));
+    }
     _invalidate();
     notifyListeners();
   }
@@ -923,14 +943,23 @@ class LibraryController extends ChangeNotifier {
       for (var i = 0; i < prefs.manualOrder.length; i++) {
         rank[prefs.manualOrder[i]] = i;
       }
-      // Anything added since the order was made goes to the end, by name.
+      // Anything added since the order was made goes to the end, by natural sort.
       list.sort((a, b) {
         final ai = rank[a.id] ?? unplaced;
         final bi = rank[b.id] ?? unplaced;
         if (ai != bi) return ai.compareTo(bi);
-        return a.displayName.toLowerCase().compareTo(
-          b.displayName.toLowerCase(),
-        );
+        return NaturalSort.compare(a.displayName, b.displayName);
+      });
+    } else if (prefs.sortField == SortField.name) {
+      // Precompute sort keys once so large folders sort in O(N) extraction + O(N log N) compare
+      final keys = <String, NaturalSortKey>{};
+      for (final v in list) {
+        keys[v.id] = NaturalSortKey.from(v.displayName);
+      }
+      final sign = prefs.descending ? -1 : 1;
+      list.sort((a, b) {
+        final cmp = keys[a.id]!.compareTo(keys[b.id]!);
+        return sign * (cmp != 0 ? cmp : a.id.compareTo(b.id));
       });
     } else {
       final sign = prefs.descending ? -1 : 1;
@@ -954,9 +983,7 @@ class LibraryController extends ChangeNotifier {
       case SortField.duration:
         return a.durationMs.compareTo(b.durationMs);
       case SortField.name:
-        return a.displayName.toLowerCase().compareTo(
-          b.displayName.toLowerCase(),
-        );
+        return NaturalSort.compare(a.displayName, b.displayName);
       case SortField.size:
         return a.sizeBytes.compareTo(b.sizeBytes);
       case SortField.lastWatched:

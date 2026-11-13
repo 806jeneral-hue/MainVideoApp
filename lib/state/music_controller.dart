@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/local/app_database.dart';
 import '../data/models/song.dart';
+import '../data/models/video.dart';
 import '../data/services/music_service.dart';
 import '../data/services/permission_service.dart';
 import '../data/services/video_file_service.dart' show FileOpResult;
@@ -394,7 +395,8 @@ class MusicController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------- playlists
+  Video? Function(String id)? videoLookup;
+
   List<MusicPlaylist> _playlists = const [];
   List<MusicPlaylist> get playlists => _playlists;
 
@@ -405,9 +407,21 @@ class MusicController extends ChangeNotifier {
     return null;
   }
 
-  List<Song> songsIn(MusicPlaylist playlist) => [
-    for (final id in playlist.songIds) ?_byId[id],
-  ];
+  List<Song> songsIn(MusicPlaylist playlist) {
+    final list = <Song>[];
+    for (final id in playlist.songIds) {
+      final song = _byId[id];
+      if (song != null) {
+        list.add(song);
+      } else {
+        final video = videoLookup?.call(id);
+        if (video != null) {
+          list.add(Song.fromVideo(video));
+        }
+      }
+    }
+    return list;
+  }
 
   Future<MusicPlaylist> createPlaylist(String name) async {
     final playlist = MusicPlaylist(

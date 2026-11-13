@@ -5,36 +5,46 @@ import 'package:flutter/rendering.dart';
 
 import '../../core/utils/haptics.dart';
 
-/// Tags a tile with the video it shows, so a drag can find out what is under
-/// the finger by hit-testing rather than guessing from item heights — which
-/// keeps it working for both the list and the grid.
+/// Tags a tile with the video id AND its current index in the ordered list,
+/// so the drag can both identify the item and compute ranges for reverse-drag
+/// deselection — no guessing from pixel heights needed.
 class DragSelectable extends StatelessWidget {
-  const DragSelectable({super.key, required this.id, required this.child});
+  const DragSelectable({
+    super.key,
+    required this.id,
+    required this.index,
+    required this.child,
+  });
 
   final String id;
+  final int index;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      MetaData(metaData: _DragSelectTag(id), child: child);
+  Widget build(BuildContext context) => MetaData(
+        behavior: HitTestBehavior.translucent,
+        metaData: DragSelectTag(id, index),
+        child: child,
+      );
 }
 
-class _DragSelectTag {
-  const _DragSelectTag(this.id);
+class DragSelectTag {
+  const DragSelectTag(this.id, this.index);
   final String id;
+  final int index;
 }
 
 /// Lets a long-press-and-hold sweep across a list selecting as it goes, and
 /// scrolls the list when the finger reaches the top or bottom edge.
-///
-/// It listens to raw pointer events rather than using a gesture recogniser: the
-/// long press has already won the gesture arena by the time the drag starts, so
-/// a normal drag recogniser would never see it.
+/// Dragging back over already-selected items deselects them (range logic is
+/// handled by the [onHover] callback which receives both id and index).
 class DragSelectArea extends StatefulWidget {
   const DragSelectArea({
     super.key,
     required this.controller,
-    required this.armed,
+    this.armed = false,
+    this.selectionMode = false,
+    this.onLongPressStart,
     required this.onHover,
     required this.onEnd,
     required this.child,
@@ -46,8 +56,20 @@ class DragSelectArea extends StatefulWidget {
   /// lifts. Only then does a drag select rather than scroll.
   final bool armed;
 
-  final ValueChanged<String> onHover;
+  /// True when multi-select mode is currently active.
+  final bool selectionMode;
+
+  /// Optional callback when a stationary hold on a tile activates selection mode.
+  final void Function(String id, int index)? onLongPressStart;
+
+  /// Called each time the finger moves onto a new item.
+  /// Receives both the item's [id] and its [index] in the ordered list so the
+  /// callback can compute a selection range and deselect items going backward.
+  final void Function(String id, int index) onHover;
+
+  /// Called when the active drag gesture ends or pointer lifts.
   final VoidCallback onEnd;
+
   final Widget child;
 
   /// How close to an edge the finger has to get before the list starts moving.
@@ -56,46 +78,110 @@ class DragSelectArea extends StatefulWidget {
   /// Pixels per tick at the very edge.
   static const double maxStep = 18;
 
+  /// Deliberate long-press hold duration required before drag selection activates.
+  static const Duration longPressTimeout = Duration(milliseconds: 800);
+
+  /// Slop distance in logical pixels to allow minor finger jitter during hold.
+  static const double touchSlop = 20.0;
+
   @override
   State<DragSelectArea> createState() => _DragSelectAreaState();
 }
 
 class _DragSelectAreaState extends State<DragSelectArea> {
   Timer? _autoScroll;
+  Timer? _longPressTimer;
   double _step = 0;
   String? _lastId;
+  Offset? _downPos;
+  DragSelectTag? _downTag;
+  bool _isDragging = false;
 
   @override
   void dispose() {
     _autoScroll?.cancel();
+    _longPressTimer?.cancel();
     super.dispose();
   }
 
-  void _onMove(Offset globalPosition) {
-    if (!widget.armed) return;
+  void _onPointerDown(PointerDownEvent event) {
+    _longPressTimer?.cancel();
+    _longPressTimer = null;
+    _downPos = event.position;
+    _downTag = _tagAt(event.position);
+    _isDragging = false;
 
-    final id = _idAt(globalPosition);
-    if (id != null && id != _lastId) {
-      _lastId = id;
-      Haptics.tick();
-      widget.onHover(id);
+    if (widget.armed) {
+      _isDragging = true;
+      if (_downTag != null) {
+        _lastId = _downTag!.id;
+        widget.onHover(_downTag!.id, _downTag!.index);
+      }
+      return;
     }
 
-    _updateAutoScroll(globalPosition);
+    // A deliberate long-press hold (800 ms) is required to start selection,
+    // whether selectionMode is currently active or not.
+    if (_downTag != null) {
+      final tag = _downTag!;
+      _longPressTimer = Timer(DragSelectArea.longPressTimeout, () {
+        _longPressTimer = null;
+        if (!mounted || _downTag == null) return;
+        _isDragging = true;
+        _lastId = tag.id;
+        Haptics.medium();
+        if (!widget.selectionMode && widget.onLongPressStart != null) {
+          widget.onLongPressStart!(tag.id, tag.index);
+        } else {
+          widget.onHover(tag.id, tag.index);
+        }
+      });
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    final down = _downPos;
+    if (down != null && _longPressTimer != null) {
+      // Movement exceeding touch slop cancels the long press timer —
+      // this means normal scrolling or quick swiping will never start selection.
+      if ((event.position - down).distance > DragSelectArea.touchSlop) {
+        _longPressTimer?.cancel();
+        _longPressTimer = null;
+      }
+    }
+
+    // Only drag-select if a deliberate long-press activated _isDragging or widget.armed
+    if (!_isDragging && !widget.armed) return;
+
+    final tag = _tagAt(event.position);
+    if (tag != null && tag.id != _lastId) {
+      _lastId = tag.id;
+      Haptics.tick();
+      widget.onHover(tag.id, tag.index);
+    }
+
+    _updateAutoScroll(event.position);
+  }
+
+  void _onPointerUp(PointerEvent event) {
+    _finish();
+  }
+
+  void _onPointerCancel(PointerEvent event) {
+    _finish();
   }
 
   /// Finds the tile under the finger by hit-testing this subtree.
-  String? _idAt(Offset globalPosition) {
+  DragSelectTag? _tagAt(Offset globalPosition) {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return null;
-
     final result = BoxHitTestResult();
     box.hitTest(result, position: box.globalToLocal(globalPosition));
     for (final entry in result.path) {
       final target = entry.target;
       if (target is RenderMetaData) {
         final tag = target.metaData;
-        if (tag is _DragSelectTag) return tag.id;
+        if (tag is DragSelectTag) return tag;
       }
     }
     return null;
@@ -144,10 +230,11 @@ class _DragSelectAreaState extends State<DragSelectArea> {
       controller.jumpTo(next);
 
       // New rows have moved under the stationary finger — take them too.
-      final id = _idAt(globalPosition);
-      if (id != null && id != _lastId) {
-        _lastId = id;
-        widget.onHover(id);
+      final tag = _tagAt(globalPosition);
+      if (tag != null && tag.id != _lastId) {
+        _lastId = tag.id;
+        Haptics.tick();
+        widget.onHover(tag.id, tag.index);
       }
     });
   }
@@ -158,18 +245,27 @@ class _DragSelectAreaState extends State<DragSelectArea> {
   }
 
   void _finish() {
+    _longPressTimer?.cancel();
+    _longPressTimer = null;
     _stopAutoScroll();
     _step = 0;
     _lastId = null;
-    if (widget.armed) widget.onEnd();
+    _downPos = null;
+    _downTag = null;
+    final wasDragging = _isDragging || widget.armed;
+    _isDragging = false;
+    if (wasDragging) {
+      widget.onEnd();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Listener(
-      onPointerMove: (event) => _onMove(event.position),
-      onPointerUp: (_) => _finish(),
-      onPointerCancel: (_) => _finish(),
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
       child: widget.child,
     );
   }

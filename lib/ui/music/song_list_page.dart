@@ -121,9 +121,11 @@ class SongListPage extends StatelessWidget {
             ? buildSelectionAppBar(
                 context: context,
                 count: selection.count,
+                total: songs.length,
                 onClose: selection.clear,
                 onSelectAll: () =>
                     selection.selectAll([for (final song in songs) song.id]),
+                onDeselectAll: selection.clear,
               )
             : AppBar(
                 actions: [
@@ -217,6 +219,32 @@ class SongListPage extends StatelessWidget {
                     icon: icon,
                     title: emptyTitle,
                     message: emptyBody,
+                    action: playlist != null
+                        ? TextButton.icon(
+                            onPressed: () async {
+                              final target = playlist!;
+                              final picked = await Navigator.of(context)
+                                  .push<List<String>>(
+                                    MaterialPageRoute(
+                                      builder: (_) => SongPickerPage(
+                                        title: s.addToPlaylistTitle(target.name),
+                                        excluded: {
+                                          for (final song in songs) song.id,
+                                        },
+                                      ),
+                                    ),
+                                  );
+                              if (picked != null && picked.isNotEmpty) {
+                                await music.addToPlaylist(target.id, picked);
+                              }
+                            },
+                            icon: const AppIcon(AppIcons.add_rounded),
+                            label: Text(s.addToPlaylistTitle(playlist.name)),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppTheme.accent,
+                            ),
+                          )
+                        : null,
                   ),
                 )
               else

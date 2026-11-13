@@ -9,7 +9,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../data/models/enums.dart';
-import '../../data/models/playable.dart';
 import '../../data/models/song.dart';
 import '../../state/music_controller.dart';
 import '../../state/playback_controller.dart';
@@ -19,11 +18,13 @@ import '../player/widgets/playback_sheets.dart';
 import 'widgets/album_art.dart';
 import '../../core/theme/app_icons.dart';
 import '../common/app_icon.dart';
+import '../player/widgets/player_glyphs.dart';
 import 'music_actions.dart';
 
 /// Opens the music player over whatever is on screen. Music keeps playing
 /// when it closes; the mini player takes over.
 Future<void> openNowPlaying(BuildContext context) {
+  FocusManager.instance.primaryFocus?.unfocus();
   final playback = context.read<PlaybackController>();
   if (!playback.hasSession || playback.isFullscreen) return Future.value();
   playback.enterFullscreen();
@@ -312,55 +313,60 @@ class _Body extends StatelessWidget {
         final page = Column(
           children: [
             const SizedBox(height: AppTheme.space8),
-            Row(
-              children: [
-                GlassCircleButton(
-                  icon: AppIcons.keyboard_arrow_down_rounded,
-                  size: 46,
-                  iconSize: 28,
-                  tooltip: s.minimise,
-                  onTap: () => Navigator.of(context).maybePop(),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        s.nowPlaying,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.white70,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      if (queueTitle.isNotEmpty)
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      AppIcons.keyboard_arrow_down_rounded,
+                      size: 32,
+                      color: Colors.white,
+                    ),
+                    tooltip: s.minimise,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
                         Text(
-                          queueTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                          s.nowPlaying,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: Colors.white70,
+                            letterSpacing: 0.4,
                           ),
                         ),
-                    ],
+                        if (queueTitle.isNotEmpty)
+                          Text(
+                            queueTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                GlassCircleButton(
-                  icon: AppIcons.queue_music_rounded,
-                  size: 46,
-                  iconSize: 24,
-                  tooltip: s.playingQueue,
-                  onTap: () => showQueueSheet(context),
-                ),
-                const SizedBox(width: AppTheme.space8),
-                GlassCircleButton(
-                  icon: AppIcons.more_vert_rounded,
-                  size: 46,
-                  iconSize: 22,
-                  tooltip: s.more,
-                  onTap: () => showNowPlayingOptions(context, song),
-                ),
-              ],
-            ),
+                  IconButton(
+                    icon: const Icon(
+                      AppIcons.queue_music_rounded,
+                      size: 26,
+                      color: Colors.white,
+                    ),
+                    tooltip: s.playingQueue,
+                    onPressed: () => showQueueSheet(context),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      AppIcons.more_vert_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                    tooltip: s.more,
+                    onPressed: () => showNowPlayingOptions(context, song),
+                  ),
+                ],
+              ),
             const Spacer(),
             _Cover(song: song, size: coverSize),
             const Spacer(),
@@ -611,6 +617,9 @@ class _Transport extends StatelessWidget {
       ),
     );
 
+    final style = context.watch<SettingsController>().appStyle;
+    final isSunset = style == AppStyle.sunset;
+
     // Transport keeps its conventional order in Arabic too.
     return Directionality(
       textDirection: TextDirection.ltr,
@@ -628,7 +637,17 @@ class _Transport extends StatelessWidget {
             onPressed: playback.previous,
             iconSize: 42,
             color: Colors.white,
-            icon: const AppIcon(AppIcons.skip_previous_rounded),
+            icon: isSunset
+                ? PlayerGlyph(
+                    PlayerGlyphKind.skipPrevious,
+                    color: Colors.white,
+                    size: 38,
+                  )
+                : const Icon(
+                    AppIcons.skip_previous_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
           ),
           PressScale(
             child: controller == null
@@ -647,7 +666,17 @@ class _Transport extends StatelessWidget {
             iconSize: 42,
             color: Colors.white,
             disabledColor: Colors.white24,
-            icon: const AppIcon(AppIcons.skip_next_rounded),
+            icon: isSunset
+                ? PlayerGlyph(
+                    PlayerGlyphKind.skipNext,
+                    color: hasNext ? Colors.white : Colors.white24,
+                    size: 38,
+                  )
+                : Icon(
+                    AppIcons.skip_next_rounded,
+                    color: hasNext ? Colors.white : Colors.white24,
+                    size: 38,
+                  ),
           ),
           toggle(
             icon: loopMode == LoopMode.one
@@ -675,27 +704,19 @@ class _PlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 0,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 76,
-          height: 76,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            transitionBuilder: (child, animation) =>
-                ScaleTransition(scale: animation, child: child),
-            child: AppIcon(
-              playing ? AppIcons.pause_rounded : AppIcons.play_arrow_rounded,
-              key: ValueKey(playing),
-              size: 42,
-              color: Colors.black87,
-            ),
-          ),
+    return IconButton(
+      onPressed: onTap,
+      iconSize: 68,
+      tooltip: playing ? context.s.pause : context.s.play,
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        child: AppIcon(
+          playing ? AppIcons.pause_rounded : AppIcons.play_arrow_rounded,
+          key: ValueKey(playing),
+          size: 68,
+          color: Colors.white,
         ),
       ),
     );
