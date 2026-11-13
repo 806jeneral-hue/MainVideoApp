@@ -32,9 +32,7 @@ mixin SearchFocusState<T extends StatefulWidget> on State<T> {
   void toggleSearch({required VoidCallback onClear}) {
     setState(() {
       isSearching = !isSearching;
-      if (isSearching) {
-        searchFocusNode.requestFocus();
-      } else {
+      if (!isSearching) {
         searchController.clear();
         onClear();
         searchFocusNode.unfocus();

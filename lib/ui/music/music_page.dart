@@ -93,7 +93,7 @@ class _MusicPageState extends State<MusicPage> with SearchFocusState<MusicPage> 
     }
 
     return PopScope(
-      canPop: !isSearching && searchController.text.isEmpty && !searchFocusNode.hasFocus,
+      canPop: !isSearching && searchController.text.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (handleSearchPop(onClear: music.clearQuery)) return;

@@ -148,7 +148,7 @@ class _HomePageState extends State<HomePage>
     });
 
     return PopScope(
-      canPop: !isSearching && searchController.text.isEmpty && !selectionMode && !searchFocusNode.hasFocus,
+      canPop: !isSearching && searchController.text.isEmpty && !selectionMode,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (selectionMode) {
